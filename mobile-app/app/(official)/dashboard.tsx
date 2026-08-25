@@ -18,23 +18,47 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useRouter } from 'expo-router';
 import { useAuth } from '../../hooks/useAuth';
+import { useScouting } from '../../hooks/useScouting';
 import { Colors } from '../../constants/colors';
 
-function ActionCard({ icon, title, desc, accent }: { icon: string; title: string; desc: string; accent: string }) {
+function ActionCard({
+  icon,
+  title,
+  desc,
+  accent,
+  onPress,
+}: {
+  icon: string;
+  title: string;
+  desc: string;
+  accent: string;
+  onPress?: () => void;
+}) {
   return (
-    <View style={[styles.actionCard, { borderLeftColor: accent, borderLeftWidth: 3 }]}>
+    <Pressable
+      style={({ pressed }) => [
+        styles.actionCard,
+        { borderLeftColor: accent, borderLeftWidth: 3 },
+        pressed && { opacity: 0.8 },
+      ]}
+      onPress={onPress}
+    >
       <Text style={styles.actionIcon}>{icon}</Text>
       <View style={{ flex: 1 }}>
         <Text style={styles.actionTitle}>{title}</Text>
         <Text style={styles.actionDesc}>{desc}</Text>
       </View>
-    </View>
+      <Text style={[styles.actionArrow, { color: accent }]}>→</Text>
+    </Pressable>
   );
 }
 
 export default function OfficialDashboard() {
+  const router = useRouter();
   const { name, logout } = useAuth();
+  const { shortlist, verifications } = useScouting();
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
 
   React.useEffect(() => {
@@ -62,43 +86,48 @@ export default function OfficialDashboard() {
             </Pressable>
           </View>
 
-          {/* ── Pending actions banner ── */}
-          <LinearGradient
-            colors={['rgba(0,212,255,0.15)', 'rgba(0,212,255,0.05)']}
-            style={styles.banner}
+          {/* ── Quick Scouting Portal CTA Banner ── */}
+          <Pressable
+            onPress={() => router.push('/(official)/review' as any)}
+            style={({ pressed }) => [pressed && { opacity: 0.9 }]}
           >
-            <Text style={styles.bannerIcon}>📋</Text>
-            <View>
-              <Text style={styles.bannerTitle}>No athletes to review yet</Text>
-              <Text style={styles.bannerSub}>Athletes will appear here once they submit videos</Text>
-            </View>
-          </LinearGradient>
+            <LinearGradient
+              colors={['rgba(0,212,255,0.2)', 'rgba(0,212,255,0.06)']}
+              style={styles.banner}
+            >
+              <Text style={styles.bannerIcon}>📋</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.bannerTitle}>Open Scouting Portal →</Text>
+                <Text style={styles.bannerSub}>Review, verify & shortlist top athletes</Text>
+              </View>
+            </LinearGradient>
+          </Pressable>
 
           {/* ── Capabilities ── */}
-          <Text style={styles.sectionTitle}>WHAT YOU CAN DO</Text>
+          <Text style={sectionTitleStyle}>SCOUTING ACTIONS</Text>
           <ActionCard
             icon="🔍"
-            title="Review AI-Assessed Athletes"
-            desc="Browse performance reports filtered by sport, exercise & score"
+            title="Review Candidate Athletes"
+            desc="Browse AI-scored athlete performances by sport & exercise"
             accent={Colors.primary}
-          />
-          <ActionCard
-            icon="✅"
-            title="Verify Performances"
-            desc="Add a verification badge to athletes whose performance you confirm"
-            accent={Colors.secondary}
+            onPress={() => router.push('/(official)/review' as any)}
           />
           <ActionCard
             icon="📋"
-            title="Build Your Shortlist"
-            desc="Shortlist top athletes for further selection and programs"
+            title="Manage Talent Shortlist"
+            desc={`View & manage your ${shortlist.length} bookmarked athlete candidates`}
             accent={Colors.warning}
+            onPress={() => router.push('/(official)/shortlist' as any)}
           />
 
           {/* ── Stats row ── */}
-          <Text style={styles.sectionTitle}>YOUR STATS</Text>
+          <Text style={sectionTitleStyle}>YOUR SCOUTING STATS</Text>
           <View style={styles.statsRow}>
-            {[['—', 'Verified', Colors.secondary], ['—', 'Shortlisted', Colors.primary], ['—', 'Reviewed', Colors.warning]].map(([v, l, c]) => (
+            {[
+              [String(verifications.length), 'Verified', Colors.secondary],
+              [String(shortlist.length), 'Shortlisted', Colors.primary],
+              ['LIVE', 'Portal', Colors.warning],
+            ].map(([v, l, c]) => (
               <View key={l} style={[styles.statCard, { borderColor: `${c}30` }]}>
                 <Text style={[styles.statValue, { color: c as string }]}>{v}</Text>
                 <Text style={styles.statLabel}>{l}</Text>
@@ -111,6 +140,8 @@ export default function OfficialDashboard() {
     </LinearGradient>
   );
 }
+
+const sectionTitleStyle = styles.sectionTitle;
 
 const styles = StyleSheet.create({
   gradient: { flex: 1 },
@@ -149,6 +180,7 @@ const styles = StyleSheet.create({
   actionIcon:  { fontSize: 24 },
   actionTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: 3 },
   actionDesc:  { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
+  actionArrow: { fontSize: 18, fontWeight: '900', marginLeft: 8 },
 
   statsRow: { flexDirection: 'row', gap: 10 },
   statCard: {
