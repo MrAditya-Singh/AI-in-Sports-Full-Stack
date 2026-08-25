@@ -19,6 +19,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useRouter } from 'expo-router';
+import NotificationBell from '../../components/NotificationBell';
 import { useAuth } from '../../hooks/useAuth';
 import { useScouting } from '../../hooks/useScouting';
 import { Colors } from '../../constants/colors';
@@ -81,9 +82,12 @@ export default function OfficialDashboard() {
                 <Text style={styles.roleBadgeText}>🔵 OFFICIAL</Text>
               </View>
             </View>
-            <Pressable onPress={logout} style={styles.logoutBtn}>
-              <Text style={styles.logoutText}>Sign out</Text>
-            </Pressable>
+            <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+              <NotificationBell routeTarget="/(athlete)/notifications" />
+              <Pressable onPress={logout} style={styles.logoutBtn}>
+                <Text style={styles.logoutText}>Sign out</Text>
+              </Pressable>
+            </View>
           </View>
 
           {/* ── Quick Scouting Portal CTA Banner ── */}

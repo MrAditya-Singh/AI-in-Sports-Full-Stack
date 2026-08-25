@@ -20,6 +20,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useRouter } from 'expo-router';
 
+import NotificationBell from '../../components/NotificationBell';
+
 import { useAuth } from '../../hooks/useAuth';
 import { useProfile } from '../../hooks/useProfile';
 import { Colors } from '../../constants/colors';
@@ -69,13 +71,16 @@ export default function AthleteDashboard() {
                 <Text style={styles.roleBadgeText}>🏃 ATHLETE</Text>
               </View>
             </View>
-            <View style={{ gap: 8, alignItems: 'flex-end' }}>
-              <Pressable onPress={() => router.push('/(athlete)/profile' as any)} style={styles.profileBtn}>
-                <Text style={styles.profileBtnText}>⚙️ Edit Profile</Text>
-              </Pressable>
-              <Pressable onPress={logout} style={styles.logoutBtn}>
-                <Text style={styles.logoutText}>Sign out</Text>
-              </Pressable>
+            <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+              <NotificationBell routeTarget="/(athlete)/notifications" />
+              <View style={{ gap: 6, alignItems: 'flex-end' }}>
+                <Pressable onPress={() => router.push('/(athlete)/profile' as any)} style={styles.profileBtn}>
+                  <Text style={styles.profileBtnText}>⚙️ Profile</Text>
+                </Pressable>
+                <Pressable onPress={logout} style={styles.logoutBtn}>
+                  <Text style={styles.logoutText}>Sign out</Text>
+                </Pressable>
+              </View>
             </View>
           </View>
 
