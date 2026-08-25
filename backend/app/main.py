@@ -73,7 +73,23 @@ app.add_middleware(
 )
 
 
-# ─── Global exception handler ─────────────────────────────────────────────────
+# ─── Global exception handlers ────────────────────────────────────────────────
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    if isinstance(exc.detail, dict):
+        return JSONResponse(status_code=exc.status_code, content=exc.detail)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "success": False,
+            "error": {
+                "code": "HTTP_ERROR",
+                "message": str(exc.detail),
+            },
+        },
+    )
+
+
 # Catches any unhandled exception and returns a safe, structured error response.
 # NEVER leaks a raw Python stack trace to the client (Rules.md §9).
 @app.exception_handler(Exception)

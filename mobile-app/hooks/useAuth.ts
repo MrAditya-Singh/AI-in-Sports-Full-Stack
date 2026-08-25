@@ -1,58 +1,53 @@
 /**
- * ATHLETIX — useAuth Hook
+ * ATHLETIX — useAuth Hook (Phase 1: FULLY IMPLEMENTED)
  * hooks/useAuth.ts
  *
- * Provides auth state (user, role, loading) to any screen.
- * Listens to Supabase onAuthStateChange so UI reacts to login/logout.
- *
- * Phase 1 will wire this into the navigation guard system.
+ * Global auth state. Uses AsyncStorage-backed session (no Supabase realtime needed).
+ * Provides: userId, name, email, role, isLoading + actions (logout).
  */
 
-import { useEffect, useState } from 'react';
-import { supabase, UserRole } from '../services/authService';
+import { useCallback, useEffect, useState } from 'react';
+import { restoreSession, logout as _logout, AuthUser } from '../services/authService';
 
 export interface AuthState {
-  userId:   string | null;
-  email:    string | null;
-  role:     UserRole | null;
+  userId:    string | null;
+  name:      string | null;
+  email:     string | null;
+  role:      'athlete' | 'official' | 'admin' | null;
   isLoading: boolean;
+  /** Call this to log out and clear all stored session data. */
+  logout:    () => Promise<void>;
+  /** Call this after a successful signup/login to refresh state. */
+  refresh:   () => Promise<void>;
 }
 
 export function useAuth(): AuthState {
-  const [state, setState] = useState<AuthState>({
-    userId:    null,
-    email:     null,
-    role:      null,
-    isLoading: true,
-  });
+  const [user, setUser]       = useState<AuthUser | null>(null);
+  const [isLoading, setLoading] = useState(true);
 
-  useEffect(() => {
-    // Initial session check
-    supabase.auth.getSession().then(({ data }) => {
-      const user = data.session?.user;
-      setState({
-        userId:    user?.id ?? null,
-        email:     user?.email ?? null,
-        role:      (user?.user_metadata?.role as UserRole) ?? null,
-        isLoading: false,
-      });
-    });
-
-    // Subscribe to auth changes
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      const user = session?.user;
-      setState({
-        userId:    user?.id ?? null,
-        email:     user?.email ?? null,
-        role:      (user?.user_metadata?.role as UserRole) ?? null,
-        isLoading: false,
-      });
-    });
-
-    return () => {
-      listener.subscription.unsubscribe();
-    };
+  const load = useCallback(async () => {
+    setLoading(true);
+    const session = await restoreSession();
+    setUser(session);
+    setLoading(false);
   }, []);
 
-  return state;
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const logout = useCallback(async () => {
+    await _logout();
+    setUser(null);
+  }, []);
+
+  return {
+    userId:    user?.userId  ?? null,
+    name:      user?.name    ?? null,
+    email:     user?.email   ?? null,
+    role:      (user?.role   ?? null) as AuthState['role'],
+    isLoading,
+    logout,
+    refresh: load,
+  };
 }

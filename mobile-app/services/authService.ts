@@ -1,21 +1,31 @@
 /**
- * ATHLETIX — Auth Service
+ * ATHLETIX — Auth Service (Phase 1: FULLY IMPLEMENTED)
  * services/authService.ts
  *
- * Wraps Supabase Auth for signup, login, logout, and token retrieval.
- * Phase 1 will fully implement these.
+ * Architecture decision:
+ *   We call FastAPI (not Supabase directly from the client) for signup/login.
+ *   FastAPI handles the Supabase Auth call + public.users insert atomically.
+ *   The returned JWT is then stored via the Supabase client's session management.
  *
- * Token storage: Supabase JS SDK handles token persistence internally
- * using AsyncStorage (React Native). Never manually store the JWT.
+ * For all subsequent API calls, the JWT is injected by the Axios interceptor in api.ts.
  */
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import api from './api';
 
-const SUPABASE_URL  = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
+const SUPABASE_URL  = process.env.EXPO_PUBLIC_SUPABASE_URL  ?? '';
 const SUPABASE_ANON = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
-// Supabase JS client — anon key only (safe for client; RLS enforces access)
-export const supabase: SupabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON);
+// Supabase JS client — anon key only; AsyncStorage for session persistence
+export const supabase: SupabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON, {
+  auth: {
+    storage:          AsyncStorage,
+    autoRefreshToken: true,
+    persistSession:   true,
+    detectSessionInUrl: false,
+  },
+});
 
 export type UserRole = 'athlete' | 'official' | 'admin';
 
@@ -31,32 +41,85 @@ export interface LoginPayload {
   password: string;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Phase 1 TODOs — implement these against the FastAPI /auth endpoints
-// ─────────────────────────────────────────────────────────────────────────────
-
-export async function signup(payload: SignupPayload): Promise<void> {
-  // TODO (Phase 1): POST /auth/signup via api.ts (which calls FastAPI → Supabase)
-  throw new Error('signup — Phase 1 TODO');
+export interface AuthUser {
+  userId:       string;
+  email:        string;
+  name:         string;
+  role:         UserRole;
+  accessToken:  string;
 }
 
-export async function login(payload: LoginPayload): Promise<void> {
-  // TODO (Phase 1): POST /auth/login, store returned JWT
-  throw new Error('login — Phase 1 TODO');
+// ─── Token storage key ────────────────────────────────────────────────────────
+const TOKEN_KEY = 'athletix_access_token';
+const USER_KEY  = 'athletix_user';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SIGNUP
+// ─────────────────────────────────────────────────────────────────────────────
+export async function signup(payload: SignupPayload): Promise<AuthUser> {
+  const response = await api.post('/auth/signup', payload);
+  const { data } = response.data;
+  const authUser: AuthUser = {
+    userId:      data.user_id,
+    email:       data.email,
+    name:        data.name,
+    role:        data.role,
+    accessToken: data.access_token,
+  };
+  await _persistSession(authUser);
+  return authUser;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// LOGIN
+// ─────────────────────────────────────────────────────────────────────────────
+export async function login(payload: LoginPayload): Promise<AuthUser> {
+  const response = await api.post('/auth/login', payload);
+  const { data } = response.data;
+  const authUser: AuthUser = {
+    userId:      data.user_id,
+    email:       data.email,
+    name:        data.name,
+    role:        data.role,
+    accessToken: data.access_token,
+  };
+  await _persistSession(authUser);
+  return authUser;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LOGOUT
+// ─────────────────────────────────────────────────────────────────────────────
 export async function logout(): Promise<void> {
-  await supabase.auth.signOut();
+  try {
+    await api.post('/auth/logout');
+  } catch {
+    // Non-critical — still clear local session regardless
+  }
+  await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]);
 }
 
-/** Returns the current session JWT, or null if not logged in. */
+// ─────────────────────────────────────────────────────────────────────────────
+// RESTORE SESSION (called on app start)
+// ─────────────────────────────────────────────────────────────────────────────
+export async function restoreSession(): Promise<AuthUser | null> {
+  try {
+    const raw = await AsyncStorage.getItem(USER_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as AuthUser;
+  } catch {
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
 export async function getAuthToken(): Promise<string | null> {
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? null;
+  return AsyncStorage.getItem(TOKEN_KEY);
 }
 
-/** Returns the current user's role from JWT metadata. */
-export async function getCurrentRole(): Promise<UserRole | null> {
-  const { data } = await supabase.auth.getUser();
-  return (data.user?.user_metadata?.role as UserRole) ?? null;
+async function _persistSession(user: AuthUser): Promise<void> {
+  await AsyncStorage.setItem(TOKEN_KEY, user.accessToken);
+  await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
 }

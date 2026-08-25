@@ -1,17 +1,23 @@
 /**
- * ATHLETIX — Root Layout (Expo Router)
+ * ATHLETIX — Root Layout (Phase 1: Navigation Guard LIVE)
  * app/_layout.tsx
  *
- * The single top-level layout that wraps the entire app.
  * Handles:
- *  - Auth state listening (via useAuth)
- *  - Role-based navigation guard (Phase 1 will make this strict)
- *  - Global loading splash while auth state resolves
+ *  - Session restoration on app start (AsyncStorage)
+ *  - Role-based navigation guard: unauthenticated → login; authenticated → dashboard
+ *  - Animated splash screen while auth state resolves
  */
 
 import { Slot, useRouter, useSegments } from 'expo-router';
-import { useEffect } from 'react';
-import { ActivityIndicator, View, StatusBar } from 'react-native';
+import { useEffect, useRef } from 'react';
+import {
+  ActivityIndicator,
+  Animated,
+  StyleSheet,
+  Text,
+  View,
+  StatusBar,
+} from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { useAuth } from '../hooks/useAuth';
@@ -19,33 +25,60 @@ import { Colors } from '../constants/colors';
 
 export default function RootLayout() {
   const { userId, role, isLoading } = useAuth();
-  const router = useRouter();
+  const router   = useRouter();
   const segments = useSegments();
 
+  // Animated fade-in for the loading splash
+  const fadeAnim  = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1, duration: 600, useNativeDriver: true,
+    }).start();
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.15, duration: 800, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1.0,  duration: 800, useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
+
   // ── Navigation guard ───────────────────────────────────────────────────────
-  // Phase 1: redirect to login if unauthenticated; route to correct dashboard
-  // based on role if authenticated.
   useEffect(() => {
     if (isLoading) return;
 
     const inAuthGroup = segments[0] === '(auth)';
 
     if (!userId && !inAuthGroup) {
-      // Not logged in — redirect to login
       router.replace('/(auth)/login');
     } else if (userId && inAuthGroup) {
-      // Logged in but still on auth screen — route to role dashboard
-      if (role === 'athlete')  router.replace('/(athlete)/dashboard');
-      if (role === 'official') router.replace('/(official)/dashboard');
-      if (role === 'admin')    router.replace('/(admin)/dashboard');
+      switch (role) {
+        case 'athlete':  router.replace('/(athlete)/dashboard');  break;
+        case 'official': router.replace('/(official)/dashboard'); break;
+        case 'admin':    router.replace('/(admin)/dashboard');    break;
+        default:         router.replace('/(auth)/login');
+      }
     }
   }, [userId, role, isLoading, segments]);
 
-  // ── Auth loading splash ────────────────────────────────────────────────────
+  // ── Animated splash ────────────────────────────────────────────────────────
   if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background }}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+      <View style={styles.splash}>
+        <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
+        <Animated.View style={[styles.logoWrap, { opacity: fadeAnim }]}>
+          <Animated.Text style={[styles.logoText, { transform: [{ scale: pulseAnim }] }]}>
+            ATHLETIX
+          </Animated.Text>
+          <Text style={styles.tagline}>AI-Powered Sports Assessment</Text>
+          <ActivityIndicator
+            size="large"
+            color={Colors.primary}
+            style={{ marginTop: 40 }}
+          />
+        </Animated.View>
       </View>
     );
   }
@@ -57,3 +90,31 @@ export default function RootLayout() {
     </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  splash: {
+    flex: 1,
+    backgroundColor: Colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoWrap: {
+    alignItems: 'center',
+  },
+  logoText: {
+    fontSize: 42,
+    fontWeight: '900',
+    letterSpacing: 6,
+    color: Colors.primary,
+    textShadowColor: Colors.primary,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 20,
+  },
+  tagline: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    letterSpacing: 2,
+    marginTop: 8,
+    textTransform: 'uppercase',
+  },
+});
