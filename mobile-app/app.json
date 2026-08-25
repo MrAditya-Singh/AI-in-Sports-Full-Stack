@@ -1,0 +1,47 @@
+{
+  "expo": {
+    "name": "ATHLETIX",
+    "slug": "athletix",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icons/icon.png",
+    "scheme": "athletix",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#0A0E1A"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.billos-crew.athletix"
+    },
+    "android": {
+      "package": "com.billoscrew.athletix",
+      "adaptiveIcon": {
+        "backgroundColor": "#0A0E1A",
+        "foregroundImage": "./assets/icons/icon.png"
+      },
+      "permissions": [
+        "NOTIFICATIONS",
+        "READ_EXTERNAL_STORAGE",
+        "READ_MEDIA_VIDEO"
+      ]
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icons/icon.png",
+          "color": "#00D4FF"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
