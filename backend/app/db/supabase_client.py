@@ -1,0 +1,25 @@
+"""
+ATHLETIX — Supabase Client (singleton)
+db/supabase_client.py
+
+Creates a single Supabase client instance using the SERVICE_ROLE key.
+The service role key bypasses RLS — this is intentional for server-side
+operations. RLS is enforced separately by Supabase policies.
+
+NEVER expose the service role key to the mobile client.
+"""
+
+from functools import lru_cache
+
+from supabase import Client, create_client
+
+from app.core.config import settings
+
+
+@lru_cache(maxsize=1)
+def get_supabase_client() -> Client:
+    """Returns the Supabase client singleton. Thread-safe via lru_cache."""
+    return create_client(
+        supabase_url=settings.SUPABASE_URL,
+        supabase_key=settings.SUPABASE_SERVICE_ROLE_KEY,
+    )
