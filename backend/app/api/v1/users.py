@@ -59,16 +59,66 @@ async def get_my_profile(user: AuthenticatedUser = Depends(get_current_user)):
         try:
             ap = (
                 supabase.table("athlete_profiles")
-                .select("age, gender, location, bio")
+                .select("age, gender, location, bio, primary_sport, height_cm, weight_kg, experience_level")
                 .eq("user_id", user.id)
                 .maybe_single()
                 .execute()
             )
-            profile["athlete_profile"] = ap.data or {}
+            ath_data = ap.data or {}
+            profile["athlete_profile"] = ath_data
+            profile["completeness_percent"] = _calculate_completeness(profile["name"], ath_data)
         except Exception:
             profile["athlete_profile"] = {}
+            profile["completeness_percent"] = 20  # Name registered only
 
     return {"success": True, "data": profile}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GET /users/athlete/{athlete_id} — fetch athlete profile (Official/Admin/Self)
+# ─────────────────────────────────────────────────────────────────────────────
+@router.get("/athlete/{athlete_id}")
+async def get_athlete_profile_by_id(
+    athlete_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+):
+    """Fetches public athlete profile for officials, admins, or self."""
+    supabase = get_supabase_client()
+
+    try:
+        user_res = (
+            supabase.table("users")
+            .select("id, name, email, role, created_at")
+            .eq("id", athlete_id)
+            .single()
+            .execute()
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"success": False, "error": {"code": "NOT_FOUND", "message": "Athlete not found."}},
+        )
+
+    if not user_res.data or user_res.data["role"] != "athlete":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"success": False, "error": {"code": "NOT_AN_ATHLETE", "message": "Specified user is not an athlete."}},
+        )
+
+    ap_res = (
+        supabase.table("athlete_profiles")
+        .select("age, gender, location, bio, primary_sport, height_cm, weight_kg, experience_level")
+        .eq("user_id", athlete_id)
+        .maybe_single()
+        .execute()
+    )
+
+    ath_data = ap_res.data or {}
+    data = user_res.data
+    data["athlete_profile"] = ath_data
+    data["completeness_percent"] = _calculate_completeness(data["name"], ath_data)
+
+    return {"success": True, "data": data}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -137,4 +187,21 @@ async def update_athlete_profile(
             detail={"success": False, "error": {"code": "UPDATE_FAILED", "message": "Could not update athlete profile."}},
         )
 
-    return {"success": True, "data": {"message": "Athlete profile updated."}}
+    return {"success": True, "data": {"message": "Athlete profile updated successfully."}}
+
+
+def _calculate_completeness(name: str, ap: dict) -> int:
+    """Calculates profile completeness percentage (0-100%)."""
+    fields = [
+        bool(name),
+        bool(ap.get("age")),
+        bool(ap.get("gender")),
+        bool(ap.get("location")),
+        bool(ap.get("primary_sport")),
+        bool(ap.get("height_cm")),
+        bool(ap.get("weight_kg")),
+        bool(ap.get("experience_level")),
+        bool(ap.get("bio")),
+    ]
+    completed = sum(1 for f in fields if f)
+    return int((completed / len(fields)) * 100)

@@ -46,11 +46,15 @@ create policy "users: update own row"
 --    Extended profile for athletes only.
 -- ─────────────────────────────────────────────────────────────────────────────
 create table if not exists public.athlete_profiles (
-  user_id   uuid primary key references public.users(id) on delete cascade,
-  age       int,
-  gender    text,
-  location  text,   -- city/state — used for geographic analytics
-  bio       text
+  user_id          uuid primary key references public.users(id) on delete cascade,
+  age              int,
+  gender           text,
+  location         text,   -- city/state — used for geographic analytics
+  bio              text,
+  primary_sport    text check (primary_sport in ('powerlifting', 'calisthenics')),
+  height_cm        numeric(5,1),
+  weight_kg        numeric(5,1),
+  experience_level text check (experience_level in ('beginner', 'intermediate', 'advanced', 'elite'))
 );
 
 alter table public.athlete_profiles enable row level security;

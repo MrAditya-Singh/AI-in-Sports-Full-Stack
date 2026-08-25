@@ -18,7 +18,10 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useRouter } from 'expo-router';
+
 import { useAuth } from '../../hooks/useAuth';
+import { useProfile } from '../../hooks/useProfile';
 import { Colors } from '../../constants/colors';
 
 function StatCard({ value, label, accent }: { value: string; label: string; accent: string }) {
@@ -41,14 +44,16 @@ function EmptyCard({ icon, title, subtitle }: { icon: string; title: string; sub
 }
 
 export default function AthleteDashboard() {
-  const { name, email, logout } = useAuth();
+  const router = useRouter();
+  const { name, logout } = useAuth();
+  const { profile, completenessPercent } = useProfile();
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
 
   React.useEffect(() => {
     Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();
   }, []);
 
-  const firstName = name?.split(' ')[0] ?? 'Athlete';
+  const firstName = (profile?.name || name)?.split(' ')[0] ?? 'Athlete';
 
   return (
     <LinearGradient colors={['#070B14', '#0A0E1A']} style={styles.gradient}>
@@ -64,10 +69,38 @@ export default function AthleteDashboard() {
                 <Text style={styles.roleBadgeText}>🏃 ATHLETE</Text>
               </View>
             </View>
-            <Pressable onPress={logout} style={styles.logoutBtn}>
-              <Text style={styles.logoutText}>Sign out</Text>
-            </Pressable>
+            <View style={{ gap: 8, alignItems: 'flex-end' }}>
+              <Pressable onPress={() => router.push('/(athlete)/profile' as any)} style={styles.profileBtn}>
+                <Text style={styles.profileBtnText}>⚙️ Edit Profile</Text>
+              </Pressable>
+              <Pressable onPress={logout} style={styles.logoutBtn}>
+                <Text style={styles.logoutText}>Sign out</Text>
+              </Pressable>
+            </View>
           </View>
+
+          {/* ── Profile Completeness Card ── */}
+          <Pressable
+            style={styles.profileCard}
+            onPress={() => router.push('/(athlete)/profile' as any)}
+          >
+            <View style={styles.profileCardRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.profileCardTitle}>
+                  Profile Completion: <Text style={{ color: Colors.primary }}>{completenessPercent}%</Text>
+                </Text>
+                <Text style={styles.profileCardSub}>
+                  {completenessPercent < 100
+                    ? 'Complete your athletic specs & bio to get scouted by officials'
+                    : 'Your athlete profile is fully set up & scout ready!'}
+                </Text>
+              </View>
+              <Text style={styles.arrowIcon}>→</Text>
+            </View>
+            <View style={styles.progressBarTrack}>
+              <View style={[styles.progressBarFill, { width: `${completenessPercent}%` }]} />
+            </View>
+          </Pressable>
 
           {/* ── Stats row ── */}
           <View style={styles.statsRow}>
@@ -124,8 +157,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 4, marginTop: 4,
   },
   roleBadgeText: { color: Colors.secondary, fontSize: 11, fontWeight: '700', letterSpacing: 1.5 },
-  logoutBtn:     { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1, borderColor: Colors.border },
-  logoutText:    { color: Colors.textMuted, fontSize: 12 },
+  profileBtn:    { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 10, backgroundColor: `${Colors.primary}20`, borderWidth: 1, borderColor: `${Colors.primary}50` },
+  profileBtnText:{ color: Colors.primary, fontSize: 11, fontWeight: '700' },
+  logoutBtn:     { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: Colors.border },
+  logoutText:    { color: Colors.textMuted, fontSize: 11 },
+
+  profileCard: {
+    backgroundColor: Colors.surface, borderRadius: 18, padding: 18,
+    borderWidth: 1, borderColor: 'rgba(0,212,255,0.2)', marginBottom: 24,
+  },
+  profileCardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  profileCardTitle: { fontSize: 14, fontWeight: '800', color: Colors.textPrimary, marginBottom: 2 },
+  profileCardSub: { fontSize: 12, color: Colors.textSecondary, lineHeight: 16 },
+  arrowIcon: { fontSize: 20, color: Colors.primary, fontWeight: '900', marginLeft: 8 },
+  progressBarTrack: { height: 6, backgroundColor: Colors.border, borderRadius: 3, overflow: 'hidden' },
+  progressBarFill: { height: '100%', backgroundColor: Colors.primary, borderRadius: 3 },
 
   statsRow: { flexDirection: 'row', gap: 10, marginBottom: 32 },
   statCard: {

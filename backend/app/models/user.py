@@ -85,7 +85,32 @@ class UpdateProfileRequest(BaseModel):
 
 
 class AthleteProfileUpdate(BaseModel):
-    age:      int  | None = None
-    gender:   str  | None = None
-    location: str  | None = None
-    bio:      str  | None = None
+    age:              int   | None = None
+    gender:           str   | None = None
+    location:         str   | None = None
+    bio:              str   | None = None
+    primary_sport:    Literal["powerlifting", "calisthenics"] | None = None
+    height_cm:        float | None = None
+    weight_kg:        float | None = None
+    experience_level: Literal["beginner", "intermediate", "advanced", "elite"] | None = None
+
+    @field_validator("age")
+    @classmethod
+    def validate_age(cls, v: int | None) -> int | None:
+        if v is not None and (v < 10 or v > 90):
+            raise ValueError("Age must be between 10 and 90.")
+        return v
+
+    @field_validator("height_cm")
+    @classmethod
+    def validate_height(cls, v: float | None) -> float | None:
+        if v is not None and (v < 100 or v > 250):
+            raise ValueError("Height must be between 100cm and 250cm.")
+        return v
+
+    @field_validator("weight_kg")
+    @classmethod
+    def validate_weight(cls, v: float | None) -> float | None:
+        if v is not None and (v < 30 or v > 250):
+            raise ValueError("Weight must be between 30kg and 250kg.")
+        return v
