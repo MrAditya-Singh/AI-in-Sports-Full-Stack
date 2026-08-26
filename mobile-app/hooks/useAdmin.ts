@@ -8,7 +8,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import {
-  getAdminAnalytics,
+  getPlatformAnalytics,
   getAdminUsers,
   getAdminVideos,
   updateUserRole,

@@ -108,7 +108,7 @@ export default function OfficialDashboard() {
           </Pressable>
 
           {/* ── Capabilities ── */}
-          <Text style={sectionTitleStyle}>SCOUTING ACTIONS</Text>
+          <Text style={styles.sectionTitle}>SCOUTING ACTIONS</Text>
           <ActionCard
             icon="🔍"
             title="Review Candidate Athletes"
@@ -125,7 +125,7 @@ export default function OfficialDashboard() {
           />
 
           {/* ── Stats row ── */}
-          <Text style={sectionTitleStyle}>YOUR SCOUTING STATS</Text>
+          <Text style={styles.sectionTitle}>YOUR SCOUTING STATS</Text>
           <View style={styles.statsRow}>
             {[
               [String(verifications.length), 'Verified', Colors.secondary],
@@ -144,8 +144,6 @@ export default function OfficialDashboard() {
     </LinearGradient>
   );
 }
-
-const sectionTitleStyle = styles.sectionTitle;
 
 const styles = StyleSheet.create({
   gradient: { flex: 1 },

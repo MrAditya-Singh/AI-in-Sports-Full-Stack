@@ -100,10 +100,10 @@ def _require_role(required_role: str):
     return role_guard
 
 
-# ─── Role dependency shortcuts ─────────────────────────────────────────────────
-require_athlete  = Depends(_require_role("athlete"))
-require_official = Depends(_require_role("official"))
-require_admin    = Depends(_require_role("admin"))
+# ─── Role dependency callable shortcuts ─────────────────────────────────────────
+require_athlete  = _require_role("athlete")
+require_official = _require_role("official")
+require_admin    = _require_role("admin")
 
 # Any authenticated user (no role restriction)
-require_auth = Depends(get_current_user)
+require_auth = get_current_user

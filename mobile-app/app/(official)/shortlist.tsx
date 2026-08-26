@@ -41,9 +41,9 @@ export default function MyShortlistScreen() {
   };
 
   const renderShortlistCard = ({ item }: { item: ShortlistItem }) => {
-    const athlete = item.athlete || {};
-    const ap      = athlete.athlete_profile || {};
-    const isBusy  = actionLoadingId === item.athlete_id;
+    const athlete: any = item.athlete || {};
+    const ap           = athlete.athlete_profile || {};
+    const isBusy       = actionLoadingId === item.athlete_id;
 
     return (
       <View style={styles.card}>
