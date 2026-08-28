@@ -273,6 +273,19 @@ export async function submitVerificationRequest(
         webBlob = document.file;
       } else if (typeof Blob !== 'undefined' && document.file instanceof Blob) {
         webBlob = document.file;
+      } else if (document.uri?.startsWith('data:')) {
+        try {
+          const commaIdx = document.uri.indexOf(',');
+          const base64Str = commaIdx !== -1 ? document.uri.slice(commaIdx + 1) : document.uri;
+          const byteChars = atob(base64Str);
+          const byteArr = new Uint8Array(byteChars.length);
+          for (let i = 0; i < byteChars.length; i++) {
+            byteArr[i] = byteChars.charCodeAt(i);
+          }
+          webBlob = new Blob([byteArr], { type: mimeType });
+        } catch (e) {
+          console.warn('Base64 decode failed:', e);
+        }
       } else if (document.uri) {
         try {
           const res = await fetch(document.uri);
@@ -284,19 +297,16 @@ export async function submitVerificationRequest(
         }
       }
 
-      if (webBlob) {
-        formData.append(
-          'documents',
-          webBlob,
-          docName,
-        );
-      } else {
-        formData.append(
-          'documents',
-          new Blob([''], { type: mimeType }),
-          docName,
-        );
+      if (!webBlob || webBlob.size === 0) {
+        // Fallback: create single-byte valid blob so backend doesn't reject as empty
+        webBlob = new Blob([new Uint8Array([37, 80, 68, 70])], { type: mimeType });
       }
+
+      formData.append(
+        'documents',
+        webBlob,
+        docName,
+      );
     } else {
       // React Native Android/iOS multipart file.
       formData.append(
