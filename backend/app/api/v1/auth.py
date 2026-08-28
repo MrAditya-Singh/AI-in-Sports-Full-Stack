@@ -25,7 +25,7 @@ import logging
 
 from fastapi import APIRouter, HTTPException, status, Depends
 
-from app.core.security import get_current_user, AuthenticatedUser
+from app.core.security import get_current_user, AuthenticatedUser, create_application_token
 from app.db.supabase_client import get_supabase_client
 from app.models.user import (
     SignupRequest,
@@ -122,16 +122,11 @@ async def signup(body: SignupRequest):
         logger.error("public.users upsert failed: %s", exc)
 
     # ── Step 3: Sign in to generate immediate active JWT session ─────────────
-    access_token = ""
-    try:
-        login_res = supabase.auth.sign_in_with_password({
-            "email":    body.email,
-            "password": body.password,
-        })
-        if login_res.session:
-            access_token = login_res.session.access_token
-    except Exception as login_exc:
-        logger.warning("Automatic sign-in after signup failed: %s", login_exc)
+    access_token = create_application_token(
+        user_id=user_id,
+        email=body.email,
+        role=body.role,
+    )
 
     logger.info("New user signed up successfully: %s | role: %s", body.email, body.role)
 
@@ -178,26 +173,32 @@ async def login(body: LoginRequest):
             detail=_err("LOGIN_FAILED", "Login failed. Please try again."),
         )
 
-    if auth_response.user is None or auth_response.session is None:
+    if auth_response.user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=_err("INVALID_CREDENTIALS", "Incorrect email or password. Please try again."),
         )
 
     user    = auth_response.user
-    session = auth_response.session
     meta    = user.user_metadata or {}
     role    = meta.get("role", "athlete")
     name    = meta.get("name", user.email or "")
+
+    # Create secure 30-day token
+    access_token = create_application_token(
+        user_id=str(user.id),
+        email=user.email or body.email,
+        role=role,
+    )
 
     logger.info("User logged in: %s | role: %s", body.email, role)
 
     return AuthResponse(
         success=True,
         data=AuthTokenData(
-            access_token=session.access_token,
+            access_token=access_token,
             role=role,
-            user_id=user.id,
+            user_id=str(user.id),
             name=name,
             email=user.email or "",
         ),

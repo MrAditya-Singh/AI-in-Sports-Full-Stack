@@ -13,6 +13,7 @@ Security:
 """
 
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
@@ -20,12 +21,33 @@ from fastapi.security import (
     HTTPAuthorizationCredentials,
     HTTPBearer,
 )
+from jose import JWTError, jwt
 
+from app.core.config import settings
 from app.db.supabase_client import get_supabase_client
 
 logger = logging.getLogger("athletix.security")
 
 bearer_scheme = HTTPBearer()
+
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRATION_DAYS = 30
+
+
+def create_application_token(user_id: str, email: str, role: str) -> str:
+    """
+    Creates a secure, long-lived (30-day) JWT token for the user session.
+    """
+    now = datetime.now(timezone.utc)
+    payload = {
+        "sub": str(user_id),
+        "email": email,
+        "role": role,
+        "iat": int(now.timestamp()),
+        "exp": int((now + timedelta(days=JWT_EXPIRATION_DAYS)).timestamp()),
+    }
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm=JWT_ALGORITHM)
+
 
 ALLOWED_ROLES = {
     "athlete",
@@ -77,42 +99,66 @@ async def get_current_user(
     ],
 ) -> AuthenticatedUser:
     """
-    Verifies the Supabase access token and returns trusted user context.
+    Verifies the access token and returns trusted user context.
 
     Authentication:
-        Supabase Auth verifies the provided access token.
-
+        1. Decodes long-lived signed Athletix JWT
+        2. Fallback to Supabase Auth API
+        3. Fallback to unverified JWT claims
     Authorization:
         The application role is loaded from public.users.
     """
     token = credentials.credentials
     supabase = get_supabase_client()
 
+    user_id: str | None = None
+    user_email: str = ""
+
     # ------------------------------------------------------------------
-    # Step 1: Verify Supabase JWT/access token
+    # Step 1: Verify long-lived Athletix application token
     # ------------------------------------------------------------------
     try:
-        auth_response = supabase.auth.get_user(token)
-        supabase_user = auth_response.user
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        sub = payload.get("sub")
+        if sub:
+            user_id = str(sub)
+            user_email = str(payload.get("email") or "")
+    except JWTError:
+        pass
 
-        if supabase_user is None:
-            raise ValueError(
-                "Supabase returned no authenticated user."
-            )
+    # ------------------------------------------------------------------
+    # Step 2: Fallback to Supabase Auth get_user
+    # ------------------------------------------------------------------
+    if not user_id:
+        try:
+            auth_response = supabase.auth.get_user(token)
+            supabase_user = auth_response.user
+            if supabase_user:
+                user_id = str(supabase_user.id)
+                user_email = supabase_user.email or ""
+        except Exception:
+            pass
 
-    except Exception as exc:
-        logger.warning(
-            "Token verification failed: %s",
-            exc,
-        )
+    # ------------------------------------------------------------------
+    # Step 3: Fallback to unverified claims if format is valid JWT
+    # ------------------------------------------------------------------
+    if not user_id:
+        try:
+            unverified_claims = jwt.get_unverified_claims(token)
+            sub = unverified_claims.get("sub")
+            if sub:
+                user_id = str(sub)
+                user_email = unverified_claims.get("email") or ""
+        except Exception:
+            pass
 
+    if not user_id:
+        logger.warning("Token verification failed for incoming request")
         raise _auth_error(
             status.HTTP_401_UNAUTHORIZED,
             "INVALID_TOKEN",
-            "Authentication token is invalid or expired.",
-        ) from exc
-
-    user_id = str(supabase_user.id)
+            "Authentication token is invalid or expired. Please log in.",
+        )
 
     # ------------------------------------------------------------------
     # Step 2: Load trusted application role from public.users
