@@ -17,6 +17,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
+const PRODUCTION_API_URL = 'https://athletix-backend-production-ce03.up.railway.app/api/v1';
+
 function resolveBaseUrl(): string {
   const configured = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
   if (configured) {
@@ -25,18 +27,12 @@ function resolveBaseUrl(): string {
 
   if (typeof window !== 'undefined' && window.location && window.location.hostname) {
     const host = window.location.hostname;
-    if (
-      host === 'localhost' ||
-      host === '127.0.0.1' ||
-      host.startsWith('192.168.') ||
-      host.startsWith('10.') ||
-      host.startsWith('172.')
-    ) {
+    if (host === 'localhost' || host === '127.0.0.1') {
       return `http://${host}:8000/api/v1`;
     }
   }
 
-  return 'http://127.0.0.1:8000/api/v1';
+  return PRODUCTION_API_URL;
 }
 
 const BASE_URL = resolveBaseUrl();
@@ -76,18 +72,6 @@ const api: AxiosInstance = axios.create({
   // ✅ CHANGED:
   // Video upload aur AI processing requests ke liye 30 seconds kam ho sakte hain.
   timeout: 120_000,
-
-  /**
-   * ✅ CHANGED:
-   * Global "Content-Type: application/json" remove kiya hai.
-   *
-   * Reason:
-   * - JSON request par Axios automatically application/json set karega.
-   * - FormData/video upload par Axios automatically correct
-   *   multipart/form-data boundary generate karega.
-   *
-   * Global JSON header video upload ko break kar sakta tha.
-   */
 });
 
 import { supabase } from './supabase';
@@ -98,14 +82,16 @@ api.interceptors.request.use(
   async (config) => {
     let token = await AsyncStorage.getItem(TOKEN_KEY);
 
-    try {
-      const { data } = await supabase.auth.getSession();
-      if (data?.session?.access_token) {
-        token = data.session.access_token;
-        await AsyncStorage.setItem(TOKEN_KEY, token);
+    if (!token) {
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (data?.session?.access_token) {
+          token = data.session.access_token;
+          await AsyncStorage.setItem(TOKEN_KEY, token);
+        }
+      } catch {
+        // fallback to stored token
       }
-    } catch {
-      // fallback to stored token
     }
 
     if (token) {
