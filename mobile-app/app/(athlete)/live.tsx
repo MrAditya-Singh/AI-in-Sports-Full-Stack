@@ -22,14 +22,15 @@ import { useRouter } from 'expo-router';
 
 import { getLiveLaunchUrl, type LiveLaunchData } from '../../services/liveCoachService';
 import { Colors } from '../../constants/colors';
+import LiveAICoachEngine from '../../components/LiveAICoachEngine';
 
 const FALLBACK_LIVE_URL = 'https://updating-hey-rough-vote.trycloudflare.com';
 
 export default function LiveCoachScreen() {
   const router = useRouter();
   const [launchData, setLaunchData] = useState<LiveLaunchData | null>(null);
+  const [engineMode, setEngineMode] = useState<'native' | 'streamlit'>('native');
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     async function initLaunch() {
@@ -75,37 +76,52 @@ export default function LiveCoachScreen() {
             >
               <Text style={styles.backText}>← Back to Upload Options</Text>
             </Pressable>
-            <Pressable
-              onPress={handleOpenExternal}
-              style={styles.openExternalBtn}
-            >
-              <Text style={styles.openExternalText}>Open Fullscreen ↗</Text>
-            </Pressable>
+
+            <View style={styles.topActionsRow}>
+              <Pressable
+                onPress={() => setEngineMode(engineMode === 'native' ? 'streamlit' : 'native')}
+                style={styles.engineToggleBtn}
+              >
+                <Text style={styles.engineToggleText}>
+                  {engineMode === 'native' ? 'Switch to Streamlit' : '⚡ 60 FPS Client Engine'}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={handleOpenExternal}
+                style={styles.openExternalBtn}
+              >
+                <Text style={styles.openExternalText}>Fullscreen ↗</Text>
+              </Pressable>
+            </View>
           </View>
+
           <View style={styles.titleRow}>
             <Text style={styles.title}>AI REAL-TIME POSTURE COACH ⚡</Text>
             <View style={styles.liveBadge}>
               <View style={styles.liveDot} />
-              <Text style={styles.liveBadgeText}>LIVE CAMERA WEBRTC</Text>
+              <Text style={styles.liveBadgeText}>
+                {engineMode === 'native' ? '60 FPS GPU ENGINE' : 'LIVE STREAMLIT'}
+              </Text>
             </View>
           </View>
           <Text style={styles.subtitle}>
-            Single Sign-On: {launchData?.username || 'Authenticated'} · Reps & Form Analysis
+            {engineMode === 'native'
+              ? 'Real-Time Camera · Instant 0ms Latency · AI Voice Guidance'
+              : `Single Sign-On: ${launchData?.username || 'Authenticated'} · Remote aiortc Stream`}
           </Text>
         </View>
 
         {/* ── Viewport / Stream Container ── */}
         <View style={styles.viewportContainer}>
-          {isLoading ? (
+          {engineMode === 'native' ? (
+            <LiveAICoachEngine athleteName={launchData?.username || 'Athlete'} />
+          ) : isLoading ? (
             <View style={styles.loadingBox}>
               <ActivityIndicator size="large" color={Colors.primary} />
               <Text style={styles.loadingText}>
-                Connecting to AI Gym Coach Real-time Engine...
+                Connecting to AI Gym Coach Streamlit Server...
               </Text>
-            </View>
-          ) : errorMsg ? (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorText}>{errorMsg}</Text>
             </View>
           ) : (
             <iframe
@@ -142,6 +158,24 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
+  },
+  topActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  engineToggleBtn: {
+    backgroundColor: 'rgba(57, 255, 20, 0.12)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(57, 255, 20, 0.4)',
+  },
+  engineToggleText: {
+    color: '#39FF14',
+    fontSize: 11,
+    fontWeight: '800',
   },
   backBtn: { alignSelf: 'flex-start' },
   backText: { color: Colors.primary, fontSize: 13, fontWeight: '700' },
