@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  athletix-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: athletix-backend
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=production
+      - PORT=8000
+      - SUPABASE_URL=https://maijocxsiiapfmoqhwua.supabase.co
+      - SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1haWpvY3hzaWlhcGZtb3Fod3VhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Nzc0NjQ5OCwiZXhwIjoyMTAzMzIyNDk4fQ.WNhxvVF86YLbWzLqYFyhY2OfVg1HFyGkJzX1DVuHY7k
+      - CLOUDINARY_CLOUD_NAME=qb8fnwhd
+      - CLOUDINARY_API_KEY=182226366817865
+      - CLOUDINARY_API_SECRET=pgTSaEoact6IRi36RM9rEz80eck
+      - SECRET_KEY=aK9!mX2$pQ8(mI0)_zL5#vW1%rT7)oP4bY3*nU6
+      - FRONTEND_URL=https://mobile-app-theta-gules.vercel.app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
