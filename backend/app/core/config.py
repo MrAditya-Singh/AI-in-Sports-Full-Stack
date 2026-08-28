@@ -30,8 +30,8 @@ class Settings(BaseSettings):
     # Password-reset emails redirect here.
     FRONTEND_URL: str = "http://localhost:8081"
 
-    # AI Real-time Gym Coach Live URL
-    LIVE_COACH_URL: str = "https://3abf53ac8cec748a-49-36-185-251.serveousercontent.com"
+    # AI Real-time Gym Coach Live URL (Cloudflare Quick Tunnel - No Warning Screen)
+    LIVE_COACH_URL: str = "https://updating-hey-rough-vote.trycloudflare.com"
 
     ALLOWED_ORIGINS: list[str] = [
         "http://localhost:8081",

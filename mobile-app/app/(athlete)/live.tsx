@@ -23,7 +23,7 @@ import { useRouter } from 'expo-router';
 import { getLiveLaunchUrl, type LiveLaunchData } from '../../services/liveCoachService';
 import { Colors } from '../../constants/colors';
 
-const FALLBACK_LIVE_URL = 'https://3abf53ac8cec748a-49-36-185-251.serveousercontent.com';
+const FALLBACK_LIVE_URL = 'https://updating-hey-rough-vote.trycloudflare.com';
 
 export default function LiveCoachScreen() {
   const router = useRouter();
