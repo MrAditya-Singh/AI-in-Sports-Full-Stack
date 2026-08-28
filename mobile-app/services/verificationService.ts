@@ -218,11 +218,11 @@ export async function submitVerificationRequest(
   const cleanedDetails = details.trim();
 
   if (
-    cleanedDetails.length < 10 ||
+    cleanedDetails.length < 1 ||
     cleanedDetails.length > 2000
   ) {
     throw new Error(
-      'Details must contain between 10 and 2000 characters.',
+      'Please enter verification details (1 to 2000 characters).',
     );
   }
 

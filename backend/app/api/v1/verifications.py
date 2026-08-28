@@ -275,14 +275,14 @@ async def create_verification_request(
 
     cleaned_details = details.strip()
 
-    if not 10 <= len(cleaned_details) <= 2000:
+    if not 1 <= len(cleaned_details) <= 2000:
         for document in documents:
             await document.close()
 
         raise _api_error(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             "INVALID_DETAILS",
-            "Details must contain between 10 and 2000 characters.",
+            "Please provide a description or reason for verification (1-2000 characters).",
         )
 
     if not 1 <= len(documents) <= MAX_DOCUMENTS:

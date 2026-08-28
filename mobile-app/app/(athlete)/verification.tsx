@@ -94,6 +94,7 @@ export default function AthleteVerificationScreen() {
 
   const [details, setDetails] = useState('');
   const [documents, setDocuments] = useState<DocumentPicker.DocumentPickerAsset[]>([]);
+  const [submitBanner, setSubmitBanner] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const selectedVideo = useMemo(
     () => completedVideos.find((video) => video.id === selectedVideoId) ?? null,
@@ -101,6 +102,7 @@ export default function AthleteVerificationScreen() {
   );
 
   async function handlePickDocuments() {
+    setSubmitBanner(null);
     if (documents.length >= MAX_DOCUMENTS) {
       Alert.alert(
         'Document limit',
@@ -149,49 +151,47 @@ export default function AthleteVerificationScreen() {
   }
 
   async function handleSubmit() {
+    setSubmitBanner(null);
+
     if (!selectedVideoId) {
-      Alert.alert(
-        'Video selection required',
-        'Please select a completed performance video to verify.',
-      );
+      const msg = 'Please select a completed performance video to verify.';
+      setSubmitBanner({ type: 'error', text: msg });
+      Alert.alert('Video selection required', msg);
       return;
     }
 
-    if (details.trim().length < 10) {
-      Alert.alert(
-        'Details required',
-        'Please enter at least 10 characters explaining your verification request.',
-      );
+    if (!details.trim()) {
+      const msg = 'Please enter verification details or reason for review.';
+      setSubmitBanner({ type: 'error', text: msg });
+      Alert.alert('Details required', msg);
       return;
     }
 
     if (documents.length === 0) {
-      Alert.alert(
-        'Document required',
-        'Attach at least one image or PDF document.',
-      );
+      const msg = 'Please attach at least one supporting document (Image or PDF).';
+      setSubmitBanner({ type: 'error', text: msg });
+      Alert.alert('Document required', msg);
       return;
     }
 
     try {
-      await submitRequest(details, documents);
+      await submitRequest(details.trim(), documents);
 
       setDetails('');
       setDocuments([]);
 
-      Alert.alert(
-        'Request submitted',
-        'Your verification request has been submitted for official review.',
-      );
+      const successMsg = 'Verification request submitted for official review! 🛡️';
+      setSubmitBanner({ type: 'success', text: successMsg });
+      Alert.alert('Request submitted', successMsg);
 
       await refresh();
     } catch (caughtError: any) {
-      Alert.alert(
-        'Submission failed',
+      const errMsg =
         caughtError?.userMessage ??
-          caughtError?.message ??
-          'Could not submit verification request.',
-      );
+        caughtError?.message ??
+        'Could not submit verification request. Please try again.';
+      setSubmitBanner({ type: 'error', text: errMsg });
+      Alert.alert('Submission failed', errMsg);
     }
   }
 
@@ -617,6 +617,46 @@ export default function AthleteVerificationScreen() {
               </View>
             )}
 
+            {/* Inline Submission Feedback Banner */}
+            {submitBanner ? (
+              <View
+                style={{
+                  backgroundColor:
+                    submitBanner.type === 'success'
+                      ? `${colors.secondary}18`
+                      : `${colors.error}18`,
+                  borderColor:
+                    submitBanner.type === 'success'
+                      ? `${colors.secondary}50`
+                      : `${colors.error}50`,
+                  borderWidth: 1,
+                  borderRadius: 12,
+                  padding: 12,
+                  marginBottom: 16,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                <Text style={{ fontSize: 16 }}>
+                  {submitBanner.type === 'success' ? '✅' : '⚠️'}
+                </Text>
+                <Text
+                  style={{
+                    color:
+                      submitBanner.type === 'success'
+                        ? colors.secondary
+                        : colors.error,
+                    fontSize: 12,
+                    fontWeight: '700',
+                    flex: 1,
+                  }}
+                >
+                  {submitBanner.text}
+                </Text>
+              </View>
+            ) : null}
+
             {/* Submit Action */}
             <Pressable
               onPress={handleSubmit}
@@ -637,7 +677,10 @@ export default function AthleteVerificationScreen() {
                 style={styles.submitBtnGrad}
               >
                 {isSubmitting ? (
-                  <ActivityIndicator color="#FFF" />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <ActivityIndicator color="#FFF" />
+                    <Text style={styles.submitBtnText}>SUBMITTING REQUEST...</Text>
+                  </View>
                 ) : (
                   <Text style={styles.submitBtnText}>
                     SUBMIT FOR OFFICIAL REVIEW 🛡️
