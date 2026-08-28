@@ -168,9 +168,9 @@ export function useVerification(initialVideoId?: string | null): UseVerification
 
       const normalizedDetails = details.trim();
 
-      if (normalizedDetails.length < 10) {
+      if (normalizedDetails.length < 1) {
         const message =
-          'Verification details must contain at least 10 characters.';
+          'Please enter verification details or reason for review.';
         setError(message);
         throw new Error(message);
       }
