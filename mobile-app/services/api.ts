@@ -17,22 +17,30 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
-// ✅ CHANGED:
-// localhost fallback remove kiya hai.
-// Missing environment variable ko silently hide nahi karna chahiye.
-const CONFIGURED_BASE_URL =
-  process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
+function resolveBaseUrl(): string {
+  if (typeof window !== 'undefined' && window.location && window.location.hostname) {
+    const host = window.location.hostname;
+    if (
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host.startsWith('192.168.') ||
+      host.startsWith('10.') ||
+      host.startsWith('172.')
+    ) {
+      return `http://${host}:8000/api/v1`;
+    }
+  }
 
-if (!CONFIGURED_BASE_URL) {
-  throw new Error(
-    'EXPO_PUBLIC_API_BASE_URL is missing. Check mobile-app/.env'
-  );
+  const configured = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
+  if (configured) {
+    return configured.replace(/\/+$/, '');
+  }
+
+  return 'http://127.0.0.1:8000/api/v1';
 }
 
-// ✅ CHANGED:
-// End me agar "/" ho to remove hoga.
-// Isse "/api/v1/" + "/auth/login" jaisa double slash nahi banega.
-const BASE_URL = CONFIGURED_BASE_URL.replace(/\/+$/, '');
+const BASE_URL = resolveBaseUrl();
+
 
 // AsyncStorage key authService.ts wali key se exactly match honi chahiye.
 const TOKEN_KEY = 'athletix_access_token';
@@ -86,6 +94,19 @@ const api: AxiosInstance = axios.create({
 
 api.interceptors.request.use(
   async (config) => {
+    if (typeof window !== 'undefined' && window.location && window.location.hostname) {
+      const host = window.location.hostname;
+      if (
+        host === 'localhost' ||
+        host === '127.0.0.1' ||
+        host.startsWith('192.168.') ||
+        host.startsWith('10.') ||
+        host.startsWith('172.')
+      ) {
+        config.baseURL = `http://${host}:8000/api/v1`;
+      }
+    }
+
     const token = await AsyncStorage.getItem(TOKEN_KEY);
 
     if (token) {
@@ -95,8 +116,6 @@ api.interceptors.request.use(
     return config;
   },
 
-  // ✅ CHANGED:
-  // Request configuration/interceptor error properly reject hoga.
   (error: unknown) => Promise.reject(error)
 );
 
