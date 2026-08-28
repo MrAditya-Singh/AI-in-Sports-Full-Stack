@@ -12,14 +12,12 @@ from typing import Optional, List
 from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, status, Depends
 
+from app.core.config import settings
 from app.core.security import require_athlete, AuthenticatedUser
 from app.db.supabase_client import get_supabase_client
 
 logger = logging.getLogger("athletix.live_coach")
 router = APIRouter()
-
-STREAMLIT_PORT = 8501
-STREAMLIT_HOST = "localhost"
 
 
 class LiveSessionPayload(BaseModel):
@@ -37,7 +35,8 @@ async def get_live_launch_url(athlete: AuthenticatedUser = Depends(require_athle
     pre-configured with the athlete's authenticated username for single-sign-on (SSO).
     """
     username = athlete.email.split("@")[0] if athlete.email else f"athlete_{athlete.id[:6]}"
-    launch_url = f"http://{STREAMLIT_HOST}:{STREAMLIT_PORT}/?username={username}"
+    base_url = settings.LIVE_COACH_URL.rstrip("/")
+    launch_url = f"{base_url}/?username={username}"
 
     return {
         "success": True,

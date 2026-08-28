@@ -17,11 +17,13 @@ import {
   View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Linking, Platform, SafeAreaView } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { getLiveLaunchUrl, type LiveLaunchData } from '../../services/liveCoachService';
 import { Colors } from '../../constants/colors';
+
+const FALLBACK_LIVE_URL = 'https://3abf53ac8cec748a-49-36-185-251.serveousercontent.com';
 
 export default function LiveCoachScreen() {
   const router = useRouter();
@@ -33,16 +35,10 @@ export default function LiveCoachScreen() {
     async function initLaunch() {
       try {
         const data = await getLiveLaunchUrl();
-        const host = typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : 'localhost';
-        const formattedUrl = `http://${host}:8501/?username=${encodeURIComponent(data.username)}`;
-        setLaunchData({
-          ...data,
-          launch_url: formattedUrl,
-        });
+        setLaunchData(data);
       } catch (err: unknown) {
-        const host = typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : 'localhost';
         setLaunchData({
-          launch_url: `http://${host}:8501/?username=athlete`,
+          launch_url: `${FALLBACK_LIVE_URL}/?username=athlete`,
           username: 'athlete',
           service_status: 'fallback',
         });
@@ -53,6 +49,17 @@ export default function LiveCoachScreen() {
     void initLaunch();
   }, []);
 
+  const handleOpenExternal = () => {
+    const url = launchData?.launch_url || FALLBACK_LIVE_URL;
+    if (typeof window !== 'undefined') {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } else {
+      void Linking.openURL(url);
+    }
+  };
+
+  const activeUrl = launchData?.launch_url || `${FALLBACK_LIVE_URL}/?username=athlete`;
+
   return (
     <LinearGradient
       colors={['#070B14', '#0A0E1A', '#0D1424']}
@@ -61,12 +68,20 @@ export default function LiveCoachScreen() {
       <SafeAreaView style={styles.safe}>
         {/* ── Header ── */}
         <View style={styles.header}>
-          <Pressable
-            onPress={() => router.replace('/(athlete)/upload' as never)}
-            style={styles.backBtn}
-          >
-            <Text style={styles.backText}>← Back to Upload Options</Text>
-          </Pressable>
+          <View style={styles.topNavRow}>
+            <Pressable
+              onPress={() => router.replace('/(athlete)/upload' as never)}
+              style={styles.backBtn}
+            >
+              <Text style={styles.backText}>← Back to Upload Options</Text>
+            </Pressable>
+            <Pressable
+              onPress={handleOpenExternal}
+              style={styles.openExternalBtn}
+            >
+              <Text style={styles.openExternalText}>Open Fullscreen ↗</Text>
+            </Pressable>
+          </View>
           <View style={styles.titleRow}>
             <Text style={styles.title}>AI REAL-TIME POSTURE COACH ⚡</Text>
             <View style={styles.liveBadge}>
@@ -75,7 +90,7 @@ export default function LiveCoachScreen() {
             </View>
           </View>
           <Text style={styles.subtitle}>
-            Integrated from AI Gym Coach · Single Sign-On ({launchData?.username || 'Authenticated'})
+            Single Sign-On: {launchData?.username || 'Authenticated'} · Reps & Form Analysis
           </Text>
         </View>
 
@@ -94,7 +109,7 @@ export default function LiveCoachScreen() {
             </View>
           ) : (
             <iframe
-              src={launchData?.launch_url || 'http://localhost:8501'}
+              src={activeUrl}
               style={{
                 width: '100%',
                 height: '100%',
@@ -103,7 +118,7 @@ export default function LiveCoachScreen() {
                 backgroundColor: '#000',
               }}
               title="AI Gym Coach Real-Time Streamer"
-              allow="camera; microphone; autoplay"
+              allow="camera; microphone; autoplay; display-capture; fullscreen"
             />
           )}
         </View>
@@ -122,8 +137,23 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
-  backBtn: { marginBottom: 8, alignSelf: 'flex-start' },
+  topNavRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  backBtn: { alignSelf: 'flex-start' },
   backText: { color: Colors.primary, fontSize: 13, fontWeight: '700' },
+  openExternalBtn: {
+    backgroundColor: 'rgba(0, 212, 255, 0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 212, 255, 0.4)',
+  },
+  openExternalText: { color: '#00D4FF', fontSize: 12, fontWeight: '800' },
   titleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
