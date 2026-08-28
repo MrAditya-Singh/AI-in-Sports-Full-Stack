@@ -110,19 +110,19 @@ app = FastAPI(
     description="AI-Powered Sports Talent Assessment Platform — SIH 2026",
     version="1.0.0",
     lifespan=lifespan,
-    docs_url="/docs" if is_dev_env else None,
-    redoc_url="/redoc" if is_dev_env else None,
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
 
 
 # ─── CORS ─────────────────────────────────────────────────────────────────────
-# Expo dev: any localhost origin during development; strict origins/methods in prod
+# Allow web app (Vercel, localhost) and mobile devices to access API seamlessly
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if is_dev_env else settings.ALLOWED_ORIGINS,
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"] if is_dev_env else ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["*"] if is_dev_env else ["Authorization", "Content-Type", "Accept"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 

@@ -18,6 +18,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // ─── Configuration ────────────────────────────────────────────────────────────
 
 function resolveBaseUrl(): string {
+  const configured = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
+  if (configured) {
+    return configured.replace(/\/+$/, '');
+  }
+
   if (typeof window !== 'undefined' && window.location && window.location.hostname) {
     const host = window.location.hostname;
     if (
@@ -29,11 +34,6 @@ function resolveBaseUrl(): string {
     ) {
       return `http://${host}:8000/api/v1`;
     }
-  }
-
-  const configured = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
-  if (configured) {
-    return configured.replace(/\/+$/, '');
   }
 
   return 'http://127.0.0.1:8000/api/v1';
@@ -94,19 +94,6 @@ const api: AxiosInstance = axios.create({
 
 api.interceptors.request.use(
   async (config) => {
-    if (typeof window !== 'undefined' && window.location && window.location.hostname) {
-      const host = window.location.hostname;
-      if (
-        host === 'localhost' ||
-        host === '127.0.0.1' ||
-        host.startsWith('192.168.') ||
-        host.startsWith('10.') ||
-        host.startsWith('172.')
-      ) {
-        config.baseURL = `http://${host}:8000/api/v1`;
-      }
-    }
-
     const token = await AsyncStorage.getItem(TOKEN_KEY);
 
     if (token) {
