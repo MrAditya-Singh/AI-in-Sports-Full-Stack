@@ -3,47 +3,12 @@
  * services/authService.ts
  */
 
-import {
-  createClient,
-  type SupabaseClient,
-} from '@supabase/supabase-js';
-
 import AsyncStorage from
   '@react-native-async-storage/async-storage';
 
 import api from './api';
-
-const SUPABASE_URL =
-  process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
-
-const SUPABASE_ANON_KEY =
-  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim();
-
-if (!SUPABASE_URL) {
-  throw new Error(
-    'EXPO_PUBLIC_SUPABASE_URL is missing. Check mobile-app/.env'
-  );
-}
-
-if (!SUPABASE_ANON_KEY) {
-  throw new Error(
-    'EXPO_PUBLIC_SUPABASE_ANON_KEY is missing. Check mobile-app/.env'
-  );
-}
-
-export const supabase: SupabaseClient =
-  createClient(
-    SUPABASE_URL,
-    SUPABASE_ANON_KEY,
-    {
-      auth: {
-        storage: AsyncStorage,
-        autoRefreshToken: true,
-        persistSession: true,
-        detectSessionInUrl: false,
-      },
-    }
-  );
+import { supabase } from './supabase';
+export { supabase };
 
 export type UserRole =
   | 'athlete'
@@ -153,6 +118,19 @@ export async function logout(): Promise<void> {
 export async function restoreSession():
   Promise<AuthUser | null> {
   try {
+    let currentToken: string | null = null;
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      currentToken = sessionData?.session?.access_token ?? null;
+
+      if (!currentToken) {
+        const { data: refreshData } = await supabase.auth.refreshSession();
+        currentToken = refreshData?.session?.access_token ?? null;
+      }
+    } catch {
+      // Supabase session refresh fallback
+    }
+
     const rawUser = await AsyncStorage.getItem(
       USER_KEY
     );
@@ -161,8 +139,14 @@ export async function restoreSession():
       TOKEN_KEY
     );
 
-    if (!rawUser || !token) {
+    const activeToken = currentToken || token;
+
+    if (!rawUser || !activeToken) {
       return null;
+    }
+
+    if (currentToken && currentToken !== token) {
+      await AsyncStorage.setItem(TOKEN_KEY, currentToken);
     }
 
     const storedUser =
@@ -170,7 +154,7 @@ export async function restoreSession():
 
     return {
       ...storedUser,
-      accessToken: token,
+      accessToken: activeToken,
     };
   } catch {
     await AsyncStorage.multiRemove([

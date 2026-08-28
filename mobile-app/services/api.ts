@@ -90,11 +90,23 @@ const api: AxiosInstance = axios.create({
    */
 });
 
+import { supabase } from './supabase';
+
 // ─── Request interceptor: inject stored JWT ───────────────────────────────────
 
 api.interceptors.request.use(
   async (config) => {
-    const token = await AsyncStorage.getItem(TOKEN_KEY);
+    let token = await AsyncStorage.getItem(TOKEN_KEY);
+
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (data?.session?.access_token) {
+        token = data.session.access_token;
+        await AsyncStorage.setItem(TOKEN_KEY, token);
+      }
+    } catch {
+      // fallback to stored token
+    }
 
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;

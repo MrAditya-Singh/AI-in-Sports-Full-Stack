@@ -346,6 +346,26 @@ export default function AthleteVerificationScreen() {
               <Text style={[styles.errorText, { color: colors.error }]}>
                 ⚠ {error}
               </Text>
+              {error.toLowerCase().includes('token') ||
+              error.toLowerCase().includes('session') ||
+              error.toLowerCase().includes('expired') ||
+              error.toLowerCase().includes('connect') ? (
+                <Pressable
+                  onPress={() => router.replace('/(auth)/login' as never)}
+                  style={{
+                    marginTop: 8,
+                    alignSelf: 'flex-start',
+                    backgroundColor: colors.primary,
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 6,
+                  }}
+                >
+                  <Text style={{ color: '#000', fontSize: 11, fontWeight: '800' }}>
+                    Log In Again ➔
+                  </Text>
+                </Pressable>
+              ) : null}
             </View>
           ) : null}
 
