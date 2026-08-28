@@ -7,23 +7,37 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { getMyProfile, updateAthleteProfile, updateCoreProfile, UserProfile, AthleteProfileData } from '../services/userService';
+import {
+  getMyProfile,
+  updateAthleteProfile,
+  updateCoreProfile,
+  type UserProfile,
+  type AthleteProfileData,
+} from '../services/userService';
 
 export interface UseProfileReturn {
-  profile:             UserProfile | null;
+  profile: UserProfile | null;
   completenessPercent: number;
-  isLoading:           boolean;
-  isSaving:            boolean;
-  error:               string | null;
-  reloadProfile:       () => Promise<void>;
-  saveProfile:         (name: string, athleteData: AthleteProfileData) => Promise<boolean>;
+  isLoading: boolean;
+  isSaving: boolean;
+  error: string | null;
+  reloadProfile: () => Promise<void>;
+  saveProfile: (
+    name: string,
+    athleteData: AthleteProfileData
+  ) => Promise<boolean>;
+}
+
+interface UserFacingError {
+  userMessage?: string;
+  message?: string;
 }
 
 export function useProfile(): UseProfileReturn {
-  const [profile, setProfile]     = useState<UserProfile | null>(null);
-  const [isLoading, setLoading]   = useState(true);
-  const [isSaving, setIsSaving]   = useState(false);
-  const [error, setError]         = useState<string | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [isLoading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -31,29 +45,42 @@ export function useProfile(): UseProfileReturn {
     try {
       const data = await getMyProfile();
       setProfile(data);
-    } catch (err: any) {
-      setError(err?.userMessage ?? 'Could not load profile.');
+    } catch (caughtError: unknown) {
+      const authError = caughtError as UserFacingError;
+      setError(
+        authError.userMessage ??
+        authError.message ??
+        'Could not load profile.'
+      );
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
-  const saveProfile = async (name: string, athleteData: AthleteProfileData): Promise<boolean> => {
+  const saveProfile = async (
+    name: string,
+    athleteData: AthleteProfileData
+  ): Promise<boolean> => {
     setIsSaving(true);
     setError(null);
     try {
-      if (name.trim() && name !== profile?.name) {
+      if (name.trim() && name.trim() !== profile?.name) {
         await updateCoreProfile(name.trim());
       }
       await updateAthleteProfile(athleteData);
-      await load(); // Reload updated profile
+      await load();
       return true;
-    } catch (err: any) {
-      setError(err?.userMessage ?? 'Failed to save profile changes.');
+    } catch (caughtError: unknown) {
+      const authError = caughtError as UserFacingError;
+      setError(
+        authError.userMessage ??
+        authError.message ??
+        'Failed to save profile changes.'
+      );
       return false;
     } finally {
       setIsSaving(false);

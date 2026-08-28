@@ -1,111 +1,397 @@
 """
-ATHLETIX — Notifications Routes (Phase 7: FULLY IMPLEMENTED)
-api/v1/notifications.py
+ATHLETIX — Notification API
+app/api/v1/notifications.py
 
 Endpoints:
-  GET /api/v1/notifications           → Fetch user's notifications & unread count
-  PUT /api/v1/notifications/{id}/read → Mark a notification as read
-  PUT /api/v1/notifications/read-all  → Mark all user notifications as read
-  POST /api/v1/notifications/test     → Trigger a test notification (for demo/testing)
+  GET /api/v1/notifications
+  PUT /api/v1/notifications/read-all
+  PUT /api/v1/notifications/{notification_id}/read
+  POST /api/v1/notifications/test
 """
 
 import logging
-from fastapi import APIRouter, HTTPException, status, Depends, Body
+import uuid
+from typing import Literal
 
-from app.core.security import get_current_user, AuthenticatedUser
+from fastapi import (
+    APIRouter,
+    Body,
+    Depends,
+    HTTPException,
+    Query,
+    status,
+)
+
+from app.core.config import settings
+from app.core.security import (
+    AuthenticatedUser,
+    get_current_user,
+)
 from app.db.supabase_client import get_supabase_client
 
 logger = logging.getLogger("athletix.notifications")
 router = APIRouter()
 
 
-@router.get("/")
-async def get_my_notifications(user: AuthenticatedUser = Depends(get_current_user)):
-    """Fetches all notifications for the authenticated user."""
+NotificationType = Literal[
+    "report_ready",
+    "verified",
+    "shortlisted",
+    "verification_pending",
+    "verification_approved",
+    "verification_rejected",
+    "general",
+]
+
+
+def _api_error(
+    status_code: int,
+    code: str,
+    message: str,
+) -> HTTPException:
+    return HTTPException(
+        status_code=status_code,
+        detail={
+            "success": False,
+            "error": {
+                "code": code,
+                "message": message,
+            },
+        },
+    )
+
+
+def _validate_uuid(
+    value: str,
+    field_name: str,
+) -> str:
+    try:
+        return str(uuid.UUID(str(value)))
+    except (
+        ValueError,
+        TypeError,
+        AttributeError,
+    ) as exc:
+        raise _api_error(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "INVALID_ID",
+            f"{field_name} is invalid.",
+        ) from exc
+
+
+# ---------------------------------------------------------------------------
+# GET /notifications
+# ---------------------------------------------------------------------------
+
+@router.get("")
+async def get_my_notifications(
+    limit: int = Query(
+        default=50,
+        ge=1,
+        le=100,
+    ),
+    user: AuthenticatedUser = Depends(
+        get_current_user
+    ),
+):
+    """
+    Returns authenticated user's notification list and total unread count.
+    """
     supabase = get_supabase_client()
 
     try:
-        res = (
+        notification_response = (
             supabase.table("notifications")
-            .select("*")
+            .select(
+                "id,user_id,message,type,"
+                "is_read,created_at"
+            )
             .eq("user_id", user.id)
             .order("created_at", desc=True)
+            .limit(limit)
             .execute()
         )
-        notifications = res.data or []
-        unread_count = sum(1 for n in notifications if not n.get("is_read"))
+
+        unread_response = (
+            supabase.table("notifications")
+            .select("id")
+            .eq("user_id", user.id)
+            .eq("is_read", False)
+            .execute()
+        )
+
+        notifications = (
+            notification_response.data or []
+        )
+
+        unread_notifications = (
+            unread_response.data or []
+        )
 
         return {
             "success": True,
             "data": {
-                "unread_count": unread_count,
+                "unread_count": len(
+                    unread_notifications
+                ),
                 "notifications": notifications,
             },
+            "meta": {
+                "limit": limit,
+                "returned": len(notifications),
+            },
         }
+
     except Exception as exc:
-        logger.error("Error fetching notifications for %s: %s", user.id, exc)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"success": False, "error": {"code": "FETCH_FAILED", "message": "Could not fetch notifications."}},
+        logger.exception(
+            "Notification fetch failed for user %s: %s",
+            user.id,
+            exc,
         )
 
+        raise _api_error(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "NOTIFICATION_FETCH_FAILED",
+            "Could not fetch notifications.",
+        ) from exc
+
+
+# ---------------------------------------------------------------------------
+# PUT /notifications/read-all
+#
+# IMPORTANT:
+# Static route parameterized route se pehle rakha gaya hai.
+# ---------------------------------------------------------------------------
+
+@router.put("/read-all")
+async def mark_all_notifications_read(
+    user: AuthenticatedUser = Depends(
+        get_current_user
+    ),
+):
+    """
+    Marks every unread notification owned by the current user as read.
+    """
+    supabase = get_supabase_client()
+
+    try:
+        response = (
+            supabase.table("notifications")
+            .update({
+                "is_read": True,
+            })
+            .eq("user_id", user.id)
+            .eq("is_read", False)
+            .execute()
+        )
+
+        updated = response.data or []
+
+        return {
+            "success": True,
+            "data": {
+                "message": (
+                    "All notifications marked as read."
+                ),
+                "updated_count": len(updated),
+            },
+        }
+
+    except Exception as exc:
+        logger.exception(
+            "Mark-all-read failed for user %s: %s",
+            user.id,
+            exc,
+        )
+
+        raise _api_error(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "NOTIFICATION_UPDATE_FAILED",
+            "Could not mark notifications as read.",
+        ) from exc
+
+
+# ---------------------------------------------------------------------------
+# PUT /notifications/{notification_id}/read
+# ---------------------------------------------------------------------------
 
 @router.put("/{notification_id}/read")
 async def mark_notification_read(
     notification_id: str,
-    user: AuthenticatedUser = Depends(get_current_user),
+    user: AuthenticatedUser = Depends(
+        get_current_user
+    ),
 ):
-    """Marks a single notification as read."""
+    """
+    Marks one notification as read.
+
+    Both notification ID and current user ID are included in the update query,
+    preventing another user's notification from being modified.
+    """
+    validated_id = _validate_uuid(
+        notification_id,
+        "Notification ID",
+    )
+
     supabase = get_supabase_client()
 
     try:
-        supabase.table("notifications").update({"is_read": True}).eq("id", notification_id).eq("user_id", user.id).execute()
-        return {"success": True, "data": {"message": "Notification marked as read."}}
-    except Exception as exc:
-        logger.error("Error updating notification %s: %s", notification_id, exc)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"success": False, "error": {"code": "UPDATE_FAILED", "message": "Could not update notification."}},
+        existing_response = (
+            supabase.table("notifications")
+            .select("id,is_read")
+            .eq("id", validated_id)
+            .eq("user_id", user.id)
+            .maybe_single()
+            .execute()
         )
 
+        existing = existing_response.data
 
-@router.put("/read-all")
-async def mark_all_read(user: AuthenticatedUser = Depends(get_current_user)):
-    """Marks all notifications as read for the user."""
-    supabase = get_supabase_client()
+        if not isinstance(existing, dict):
+            raise _api_error(
+                status.HTTP_404_NOT_FOUND,
+                "NOTIFICATION_NOT_FOUND",
+                "Notification was not found.",
+            )
 
-    try:
-        supabase.table("notifications").update({"is_read": True}).eq("user_id", user.id).execute()
-        return {"success": True, "data": {"message": "All notifications marked as read."}}
-    except Exception as exc:
-        logger.error("Error marking all read for %s: %s", user.id, exc)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"success": False, "error": {"code": "UPDATE_FAILED", "message": "Could not mark notifications read."}},
+        if existing.get("is_read") is True:
+            return {
+                "success": True,
+                "data": {
+                    "message": (
+                        "Notification is already read."
+                    ),
+                    "notification_id": validated_id,
+                    "already_read": True,
+                },
+            }
+
+        update_response = (
+            supabase.table("notifications")
+            .update({
+                "is_read": True,
+            })
+            .eq("id", validated_id)
+            .eq("user_id", user.id)
+            .execute()
         )
 
+        if not update_response.data:
+            raise _api_error(
+                status.HTTP_404_NOT_FOUND,
+                "NOTIFICATION_NOT_FOUND",
+                "Notification was not found.",
+            )
 
-@router.post("/test", status_code=status.HTTP_201_CREATED)
+        return {
+            "success": True,
+            "data": {
+                "message": (
+                    "Notification marked as read."
+                ),
+                "notification_id": validated_id,
+                "already_read": False,
+            },
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as exc:
+        logger.exception(
+            "Notification update failed for %s: %s",
+            validated_id,
+            exc,
+        )
+
+        raise _api_error(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "NOTIFICATION_UPDATE_FAILED",
+            "Could not update notification.",
+        ) from exc
+
+
+# ---------------------------------------------------------------------------
+# POST /notifications/test
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/test",
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_test_notification(
-    user: AuthenticatedUser = Depends(get_current_user),
-    message: str = Body("Your AI performance report is ready! 🎯", embed=True),
-    type_str: str = Body("report_ready", embed=True),
+    message: str = Body(
+        default=(
+            "Your AI performance report is ready!"
+        ),
+        embed=True,
+        min_length=1,
+        max_length=500,
+    ),
+    type_str: NotificationType = Body(
+        default="general",
+        embed=True,
+    ),
+    user: AuthenticatedUser = Depends(
+        get_current_user
+    ),
 ):
-    """Triggers a test notification for demo/testing."""
+    """
+    Creates a demo notification in development only.
+    """
+    if settings.APP_ENV.lower() == "production":
+        raise _api_error(
+            status.HTTP_404_NOT_FOUND,
+            "NOT_FOUND",
+            "Test notifications are not available.",
+        )
+
+    cleaned_message = message.strip()
+
+    if not cleaned_message:
+        raise _api_error(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "INVALID_MESSAGE",
+            "Notification message cannot be blank.",
+        )
+
     supabase = get_supabase_client()
 
     try:
-        res = supabase.table("notifications").insert({
-            "user_id": user.id,
-            "message": message,
-            "type": type_str,
-            "is_read": False,
-        }).execute()
-
-        return {"success": True, "data": {"message": "Notification generated.", "notification": res.data}}
-    except Exception as exc:
-        logger.error("Error creating test notification: %s", exc)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"success": False, "error": {"code": "CREATE_FAILED", "message": "Could not create notification."}},
+        response = (
+            supabase.table("notifications")
+            .insert({
+                "user_id": user.id,
+                "message": cleaned_message,
+                "type": type_str,
+                "is_read": False,
+            })
+            .execute()
         )
+
+        if not response.data:
+            raise RuntimeError(
+                "Notification insert returned no data."
+            )
+
+        return {
+            "success": True,
+            "data": {
+                "message": (
+                    "Test notification generated."
+                ),
+                "notification": response.data[0],
+            },
+        }
+
+    except Exception as exc:
+        logger.exception(
+            "Test notification creation failed: %s",
+            exc,
+        )
+
+        raise _api_error(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "NOTIFICATION_CREATE_FAILED",
+            "Could not create test notification.",
+        ) from exc

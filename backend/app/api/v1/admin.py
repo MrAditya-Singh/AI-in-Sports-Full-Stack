@@ -205,3 +205,45 @@ async def get_all_videos_for_oversight(admin: AuthenticatedUser = Depends(requir
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"success": False, "error": {"code": "FETCH_VIDEOS_FAILED", "message": "Could not fetch videos list."}},
         )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DELETE /admin/videos/{video_id} — content moderation / delete video
+# ─────────────────────────────────────────────────────────────────────────────
+@router.delete("/videos/{video_id}")
+async def delete_video_as_admin(
+    video_id: str,
+    admin: AuthenticatedUser = Depends(require_admin),
+):
+    """Deletes a video record for content moderation. Requires Admin role."""
+    supabase = get_supabase_client()
+
+    try:
+        # Check if video exists
+        existing = (
+            supabase.table("videos")
+            .select("id, athlete_id, sport, exercise")
+            .eq("id", video_id)
+            .maybe_single()
+            .execute()
+        )
+        if not existing or not existing.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"success": False, "error": {"code": "VIDEO_NOT_FOUND", "message": "Video was not found."}},
+            )
+
+        # Delete video record (cascade handles assessments/verifications)
+        supabase.table("videos").delete().eq("id", video_id).execute()
+
+        logger.info("Admin %s deleted video %s", admin.id, video_id)
+        return {"success": True, "data": {"message": "Video deleted successfully.", "deleted_id": video_id}}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Admin delete video error: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"success": False, "error": {"code": "DELETE_VIDEO_FAILED", "message": "Could not delete video."}},
+        )
+

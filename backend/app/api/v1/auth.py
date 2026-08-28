@@ -144,6 +144,7 @@ async def login(body: LoginRequest):
     supabase = get_supabase_client()
 
     try:
+        # pyrefly: ignore [bad-argument-type]
         auth_response = supabase.auth.sign_in_with_password({
             "email":    body.email,
             "password": body.password,

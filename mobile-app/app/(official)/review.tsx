@@ -65,7 +65,8 @@ export default function ReviewAthleteScreen() {
 
   const handleToggleShortlist = async (item: LeaderboardItem) => {
     const isCurrentlyShortlisted = isShortlisted(item.athlete_id);
-    await toggleShortlist(item.athlete_id, selectedSport);
+    const targetSport = item.sport === 'calisthenics' || selectedSport === 'calisthenics' ? 'calisthenics' : 'powerlifting';
+    await toggleShortlist(item.athlete_id, targetSport);
     showToast(
       isCurrentlyShortlisted
         ? `Removed ${item.athlete_name} from shortlist.`

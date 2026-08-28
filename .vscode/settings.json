@@ -1,0 +1,11 @@
+{
+  "python.envFile": "D:/AndroidStudio/TestProject/AI in Sports-Full Stack/backend/.env",
+  "python.terminal.useEnvFile": true,
+  "python.terminal.activateEnvironment": true,
+  "python.analysis.extraPaths": [
+    "D:/AndroidStudio/TestProject/AI in Sports-Full Stack/backend"
+  ],
+  "python.analysis.diagnosticSeverityOverrides": {
+    "reportMissingImports": "warning"
+  }
+}

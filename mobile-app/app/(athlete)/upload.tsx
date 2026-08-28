@@ -183,8 +183,31 @@ export default function UploadVideoScreen() {
             </View>
           )}
 
+          {/* ── Live AI Posture Coach Option ── */}
+          <Pressable
+            style={({ pressed }) => [styles.liveCoachCard, pressed && { opacity: 0.85 }]}
+            onPress={() => router.push('/(athlete)/live' as any)}
+          >
+            <LinearGradient
+              colors={['rgba(5, 150, 105, 0.18)', 'rgba(16, 185, 129, 0.06)']}
+              style={styles.liveCoachGrad}
+            >
+              <View style={styles.liveCoachTop}>
+                <View style={styles.liveCoachBadge}>
+                  <View style={styles.livePulseDot} />
+                  <Text style={styles.liveCoachBadgeText}>LIVE CAMERA WEBRTC</Text>
+                </View>
+                <Text style={styles.liveCoachArrow}>Launch Coach ⚡ →</Text>
+              </View>
+              <Text style={styles.liveCoachTitle}>Want Instant Live Form Feedback?</Text>
+              <Text style={styles.liveCoachSub}>
+                Use your device camera with our AI Gym Coach for real-time rep counting and voice technique coaching.
+              </Text>
+            </LinearGradient>
+          </Pressable>
+
           {/* ── Step 3: Pick & Upload Video ── */}
-          <Text style={styles.sectionTitle}>3. SELECT ATTEMPT VIDEO</Text>
+          <Text style={styles.sectionTitle}>3. OR SELECT PRE-RECORDED ATTEMPT VIDEO</Text>
 
           <Pressable
             style={({ pressed }) => [styles.dropzone, pressed && { opacity: 0.8 }]}
@@ -333,6 +356,60 @@ const styles = StyleSheet.create({
   guidelineDesc:   { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, marginBottom: 8 },
   tipsRow:         { borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 8, gap: 4 },
   tipText:         { fontSize: 11, color: Colors.textMuted },
+
+  liveCoachCard: {
+    borderRadius: 18,
+    overflow: 'hidden',
+    borderWidth: 1.5,
+    borderColor: 'rgba(5, 150, 105, 0.4)',
+    marginBottom: 20,
+  },
+  liveCoachGrad: { padding: 16 },
+  liveCoachTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  liveCoachBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(57, 255, 20, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(57, 255, 20, 0.35)',
+  },
+  livePulseDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#39FF14',
+  },
+  liveCoachBadgeText: {
+    color: '#39FF14',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  liveCoachArrow: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#39FF14',
+  },
+  liveCoachTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+    marginBottom: 4,
+  },
+  liveCoachSub: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    lineHeight: 16,
+  },
 
   dropzone:     { borderRadius: 20, overflow: 'hidden', borderWidth: 1.5, borderColor: `${Colors.primary}40`, borderStyle: 'dashed', marginBottom: 20 },
   dropzoneGrad: { padding: 28, alignItems: 'center' },

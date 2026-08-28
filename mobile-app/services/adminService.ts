@@ -71,3 +71,8 @@ export async function getAdminVideos(): Promise<AdminVideoItem[]> {
   const response = await api.get('/admin/videos');
   return response.data.data || [];
 }
+
+/** Deletes a video record for content moderation */
+export async function deleteAdminVideo(videoId: string): Promise<void> {
+  await api.delete(`/admin/videos/${videoId}`);
+}

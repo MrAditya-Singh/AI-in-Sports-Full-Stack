@@ -4,6 +4,10 @@ services/ai/pose_estimation.py
 
 Uses MediaPipe Tasks Python API (PoseLandmarker) with pose_landmarker_full.task
 model for robust 33-keypoint tracking across video frames.
+
+Working of this code::
+- It uses MediaPipe Tasks Python API (PoseLandmarker) with pose_landmarker_full.task
+- model for robust 33-keypoint tracking across video frames.
 """
 
 import logging
@@ -11,9 +15,13 @@ import os
 from pathlib import Path
 from typing import Any
 
+# pyrefly: ignore [missing-import]
 import cv2
+# pyrefly: ignore [missing-import]
 import mediapipe as mp
+# pyrefly: ignore [missing-import]
 from mediapipe.tasks import python
+# pyrefly: ignore [missing-import]
 from mediapipe.tasks.python import vision
 
 logger = logging.getLogger("athletix.ai.pose_estimation")

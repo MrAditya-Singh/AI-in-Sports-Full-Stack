@@ -1,38 +1,156 @@
 """
-ATHLETIX — Video Upload & Lifecycle Management API (Phase 3: FULLY IMPLEMENTED)
-api/v1/videos.py
-
-Endpoints:
-  POST /api/v1/videos/upload   → Upload athlete attempt video & trigger AI analysis
-  GET  /api/v1/videos          → List authenticated athlete's submitted videos
-  GET  /api/v1/videos/{id}     → Get single video with status & assessment detail
+ATHLETIX — Video Upload & Lifecycle Management API
+api/v1/endpoints/videos.py
 """
 
-import os
-import uuid
 import logging
+import os
+import re
+import uuid
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File, Form, BackgroundTasks
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+    status,
+)
 
-from app.core.security import require_athlete, AuthenticatedUser
 from app.core.config import settings
+from app.core.security import AuthenticatedUser, require_athlete
 from app.db.supabase_client import get_supabase_client
 from app.services.ai.pipeline import run_analysis_pipeline
 
 logger = logging.getLogger("athletix.videos")
 router = APIRouter()
 
-# Local uploads directory for persistent storage
-UPLOAD_DIR = Path(__file__).resolve().parent.parent.parent.parent / "uploads"
+# videos.py = backend/app/api/v1/videos.py → parents[3] = backend
+BACKEND_ROOT = Path(__file__).resolve().parents[3]
+UPLOAD_DIR = BACKEND_ROOT / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
+ALLOWED_EXTENSIONS = {".mp4", ".mov", ".avi", ".webm", ".mkv"}
+MAX_UPLOAD_BYTES = 250 * 1024 * 1024
+UPLOAD_CHUNK_SIZE = 1024 * 1024
 
-# ─────────────────────────────────────────────────────────────────────────────
-# POST /videos/upload — Upload video and trigger AI analysis
-# ─────────────────────────────────────────────────────────────────────────────
-@router.post("/upload", status_code=status.HTTP_201_CREATED)
+
+def _api_error(
+    status_code: int,
+    code: str,
+    message: str,
+) -> HTTPException:
+    return HTTPException(
+        status_code=status_code,
+        detail={
+            "success": False,
+            "error": {
+                "code": code,
+                "message": message,
+            },
+        },
+    )
+
+
+def _normalise_field(value: str, field_name: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise _api_error(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "INVALID_INPUT",
+            f"{field_name.capitalize()} is required.",
+        )
+
+    normalised = (
+        value.strip()
+        .lower()
+        .replace(" ", "_")
+        .replace("-", "_")
+    )
+
+    if not re.fullmatch(r"[a-z0-9_]{2,50}", normalised):
+        raise _api_error(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "INVALID_INPUT",
+            f"{field_name.capitalize()} contains invalid characters.",
+        )
+
+    return normalised
+
+
+async def _save_upload(
+    file: UploadFile,
+    destination: Path,
+) -> int:
+    """
+    ✅ CHANGED:
+    Streams upload in chunks instead of loading entire video into RAM.
+    """
+    total_bytes = 0
+
+    try:
+        with destination.open("wb") as output:
+            while True:
+                chunk = await file.read(UPLOAD_CHUNK_SIZE)
+
+                if not chunk:
+                    break
+
+                total_bytes += len(chunk)
+
+                if total_bytes > MAX_UPLOAD_BYTES:
+                    raise _api_error(
+                        status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        "FILE_TOO_LARGE",
+                        "Video size must not exceed 250 MB.",
+                    )
+
+                output.write(chunk)
+
+        if total_bytes <= 0:
+            raise _api_error(
+                status.HTTP_400_BAD_REQUEST,
+                "EMPTY_FILE",
+                "Uploaded video is empty.",
+            )
+
+        return total_bytes
+
+    except Exception:
+        destination.unlink(missing_ok=True)
+        raise
+
+    finally:
+        await file.close()
+
+
+def _remove_cloudinary_video(public_id: str | None) -> None:
+    if not public_id:
+        return
+
+    try:
+        import cloudinary.uploader
+
+        cloudinary.uploader.destroy(
+            public_id,
+            resource_type="video",
+            invalidate=True,
+        )
+    except Exception as exc:
+        logger.warning(
+            "Could not clean Cloudinary video %s: %s",
+            public_id,
+            exc,
+        )
+
+
+@router.post(
+    "/upload",
+    status_code=status.HTTP_201_CREATED,
+)
 async def upload_video(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
@@ -41,156 +159,287 @@ async def upload_video(
     duration_seconds: Optional[float] = Form(None),
     athlete: AuthenticatedUser = Depends(require_athlete),
 ):
-    """
-    Accepts video file upload, stores locally (or uploads to Cloudinary if configured),
-    creates a pending video record in Postgres, and kicks off the MediaPipe BlazePose
-    AI pipeline as a background task.
-    """
-    # 1. Validate file extension
     filename = file.filename or "attempt.mp4"
-    ext = os.path.splitext(filename)[1].lower()
-    if ext not in [".mp4", ".mov", ".avi", ".webm", ".mkv"]:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"success": False, "error": {"code": "INVALID_FORMAT", "message": "Only MP4, MOV, AVI, WEBM, or MKV videos are supported."}},
-        )
+    extension = Path(filename).suffix.lower()
 
-    # 2. Save file locally
-    unique_filename = f"{athlete.id}_{uuid.uuid4().hex[:8]}{ext}"
-    local_file_path = str(UPLOAD_DIR / unique_filename)
+    if extension not in ALLOWED_EXTENSIONS:
+        await file.close()
+        raise _api_error(
+            status.HTTP_400_BAD_REQUEST,
+            "INVALID_FORMAT",
+            "Only MP4, MOV, AVI, WEBM, or MKV videos are supported.",
+        )
 
     try:
-        with open(local_file_path, "wb") as f:
-            content = await file.read()
-            f.write(content)
-    except Exception as exc:
-        logger.error("Failed to write local video file: %s", exc)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"success": False, "error": {"code": "FILE_SAVE_ERROR", "message": "Could not save video file."}},
+        sport_key = _normalise_field(sport, "sport")
+        exercise_key = _normalise_field(exercise, "exercise")
+    except HTTPException:
+        await file.close()
+        raise
+
+    if duration_seconds is not None and (
+        duration_seconds <= 0 or duration_seconds > 3600
+    ):
+        await file.close()
+        raise _api_error(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "INVALID_DURATION",
+            "Video duration must be between 0 and 3600 seconds.",
         )
 
-    # 3. Optional Cloudinary upload (if configured)
-    final_video_url = local_file_path
-    public_id = unique_filename
+    unique_filename = (
+        f"{athlete.id}_{uuid.uuid4().hex[:12]}{extension}"
+    )
+    local_path = UPLOAD_DIR / unique_filename
 
-    if settings.CLOUDINARY_CLOUD_NAME and settings.CLOUDINARY_API_KEY and settings.CLOUDINARY_API_SECRET:
+    try:
+        await _save_upload(file, local_path)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to save uploaded video: %s", exc)
+        raise _api_error(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "FILE_SAVE_ERROR",
+            "Could not save video file.",
+        ) from exc
+
+    final_video_url = str(local_path.resolve())
+    cloudinary_public_id: str | None = None
+    cloudinary_uploaded = False
+
+    cloudinary_configured = all([
+        settings.CLOUDINARY_CLOUD_NAME,
+        settings.CLOUDINARY_API_KEY,
+        settings.CLOUDINARY_API_SECRET,
+    ])
+
+    if cloudinary_configured:
         try:
             import cloudinary
             import cloudinary.uploader
+
             cloudinary.config(
                 cloud_name=settings.CLOUDINARY_CLOUD_NAME,
                 api_key=settings.CLOUDINARY_API_KEY,
                 api_secret=settings.CLOUDINARY_API_SECRET,
+                secure=True,
             )
-            res = cloudinary.uploader.upload_large(
-                local_file_path,
+
+            upload_response = cloudinary.uploader.upload_large(
+                str(local_path),
                 resource_type="video",
                 folder="athletix_attempts",
-                public_id=f"ath_{athlete.id}_{uuid.uuid4().hex[:6]}",
+                public_id=(
+                    f"ath_{athlete.id}_"
+                    f"{uuid.uuid4().hex[:12]}"
+                ),
             )
-            final_video_url = res.get("secure_url", local_file_path)
-            public_id = res.get("public_id", unique_filename)
-            logger.info("Uploaded video to Cloudinary: %s", final_video_url)
-        except Exception as cloud_exc:
-            logger.warning("Cloudinary upload skipped/failed, using local storage: %s", cloud_exc)
 
-    # 4. Insert record into Supabase `videos` table
+            # ✅ CHANGED:
+            # upload_large() returning None no longer causes res.get crash.
+            if not isinstance(upload_response, dict):
+                raise RuntimeError(
+                    "Cloudinary returned an empty or invalid response."
+                )
+
+            secure_url = upload_response.get("secure_url")
+            returned_public_id = upload_response.get("public_id")
+
+            if not isinstance(secure_url, str) or not secure_url:
+                raise RuntimeError(
+                    "Cloudinary response does not contain secure_url."
+                )
+
+            if (
+                not isinstance(returned_public_id, str)
+                or not returned_public_id
+            ):
+                raise RuntimeError(
+                    "Cloudinary response does not contain public_id."
+                )
+
+            final_video_url = secure_url
+            cloudinary_public_id = returned_public_id
+            cloudinary_uploaded = True
+
+            logger.info(
+                "Video uploaded to Cloudinary: %s",
+                final_video_url,
+            )
+
+        except Exception as cloud_error:
+            # Local upload remains usable.
+            logger.warning(
+                "Cloudinary upload failed; using local file: %s",
+                cloud_error,
+            )
+
+            final_video_url = str(local_path.resolve())
+            cloudinary_public_id = None
+            cloudinary_uploaded = False
+
     supabase = get_supabase_client()
+
     try:
         video_insert = {
-            "athlete_id":        athlete.id,
-            "sport":             sport.lower(),
-            "exercise":          exercise.lower(),
-            "video_url":         final_video_url,
-            "cloudinary_public_id": public_id,
-            "duration_seconds":  duration_seconds or 10.0,
-            "status":            "pending",
+            "athlete_id": str(athlete.id),
+            "sport": sport_key,
+            "exercise": exercise_key,
+            "video_url": final_video_url,
+            "cloudinary_public_id": cloudinary_public_id,
+            "duration_seconds": (
+                float(duration_seconds)
+                if duration_seconds is not None
+                else 10.0
+            ),
+            "status": "pending",
+            "error_msg": None,
         }
-        res = supabase.table("videos").insert(video_insert).execute()
-        if not res.data:
-            raise ValueError("Insert video record returned no data")
 
-        created_video = res.data[0]
-        video_id = created_video["id"]
+        insert_response = (
+            supabase.table("videos")
+            .insert(video_insert)
+            .execute()
+        )
 
-        # 5. Launch AI background analysis
-        background_tasks.add_task(run_analysis_pipeline, video_id)
+        if not insert_response.data:
+            raise RuntimeError(
+                "Supabase video insert returned no data."
+            )
 
-        logger.info("Video %s registered for athlete %s. AI task queued.", video_id, athlete.id)
+        created_video = insert_response.data[0]
+
+        if not isinstance(created_video, dict):
+            raise RuntimeError(
+                "Supabase returned an invalid video record."
+            )
+
+        video_id = created_video.get("id")
+
+        if not video_id:
+            raise RuntimeError(
+                "Created video record does not contain an id."
+            )
+
+        background_tasks.add_task(
+            run_analysis_pipeline,
+            str(video_id),
+        )
+
+        # Cloudinary is now the permanent copy, so local duplicate can go.
+        if cloudinary_uploaded:
+            local_path.unlink(missing_ok=True)
+
         return {
             "success": True,
             "data": {
-                "id":         video_id,
-                "status":     "pending",
-                "sport":      sport,
-                "exercise":   exercise,
-                "video_url":  final_video_url,
-                "message":    "Video uploaded successfully. AI analysis is processing in background! 🤖",
+                "id": str(video_id),
+                "status": "pending",
+                "sport": sport_key,
+                "exercise": exercise_key,
+                "video_url": final_video_url,
+                "message": (
+                    "Video uploaded successfully. "
+                    "AI analysis is processing in background! 🤖"
+                ),
             },
         }
 
+    except HTTPException:
+        raise
+
     except Exception as exc:
-        logger.error("DB insert video failed: %s", exc)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"success": False, "error": {"code": "DATABASE_ERROR", "message": "Failed to create video record."}},
-        )
+        logger.exception("Database video insert failed: %s", exc)
+
+        local_path.unlink(missing_ok=True)
+
+        if cloudinary_uploaded:
+            _remove_cloudinary_video(cloudinary_public_id)
+
+        raise _api_error(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "DATABASE_ERROR",
+            "Failed to create video record.",
+        ) from exc
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# GET /videos — List authenticated athlete's videos
-# ─────────────────────────────────────────────────────────────────────────────
 @router.get("")
-async def get_my_videos(athlete: AuthenticatedUser = Depends(require_athlete)):
-    """Fetches all submitted videos by the authenticated athlete."""
+async def get_my_videos(
+    athlete: AuthenticatedUser = Depends(require_athlete),
+):
     supabase = get_supabase_client()
+
     try:
-        res = (
+        response = (
             supabase.table("videos")
             .select("*, assessments(*)")
-            .eq("athlete_id", athlete.id)
+            .eq("athlete_id", str(athlete.id))
             .order("uploaded_at", desc=True)
             .execute()
         )
-        return {"success": True, "data": res.data or []}
+
+        return {
+            "success": True,
+            "data": response.data or [],
+        }
+
     except Exception as exc:
-        logger.error("Get videos failed: %s", exc)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"success": False, "error": {"code": "FETCH_FAILED", "message": "Could not retrieve video history."}},
-        )
+        logger.exception("Get videos failed: %s", exc)
+        raise _api_error(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "FETCH_FAILED",
+            "Could not retrieve video history.",
+        ) from exc
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# GET /videos/{video_id} — Single video detail + assessment
-# ─────────────────────────────────────────────────────────────────────────────
 @router.get("/{video_id}")
 async def get_video_detail(
     video_id: str,
     athlete: AuthenticatedUser = Depends(require_athlete),
 ):
-    """Fetches single video detail by ID with linked assessment report."""
-    supabase = get_supabase_client()
     try:
-        res = (
+        validated_video_id = str(uuid.UUID(video_id))
+    except (ValueError, TypeError, AttributeError):
+        raise _api_error(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "INVALID_VIDEO_ID",
+            "Video ID is invalid.",
+        )
+
+    supabase = get_supabase_client()
+
+    try:
+        response = (
             supabase.table("videos")
             .select("*, assessments(*)")
-            .eq("id", video_id)
+            .eq("id", validated_video_id)
+            # ✅ CHANGED: Prevent athlete A reading athlete B's video.
+            .eq("athlete_id", str(athlete.id))
             .maybe_single()
             .execute()
         )
-        if not res.data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail={"success": False, "error": {"code": "NOT_FOUND", "message": "Video not found."}},
+
+        # pyrefly: ignore [missing-attribute]
+        if not response.data:
+            raise _api_error(
+                status.HTTP_404_NOT_FOUND,
+                "NOT_FOUND",
+                "Video not found.",
             )
-        return {"success": True, "data": res.data}
+
+        return {
+            "success": True,
+            "data": response.data,
+        }
+
     except HTTPException:
         raise
+
     except Exception as exc:
-        logger.error("Get video detail failed: %s", exc)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"success": False, "error": {"code": "FETCH_FAILED", "message": "Could not retrieve video."}},
-        )
+        logger.exception("Get video detail failed: %s", exc)
+        raise _api_error(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "FETCH_FAILED",
+            "Could not retrieve video.",
+        ) from exc

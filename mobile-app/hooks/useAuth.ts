@@ -1,53 +1,54 @@
 /**
- * ATHLETIX — useAuth Hook (Phase 1: FULLY IMPLEMENTED)
+ * ATHLETIX — useAuth Hook
  * hooks/useAuth.ts
  *
- * Global auth state. Uses AsyncStorage-backed session (no Supabase realtime needed).
- * Provides: userId, name, email, role, isLoading + actions (logout).
+ * ✅ CHANGED:
+ * Local useState remove karke Zustand global auth store use kiya gaya hai.
+ *
+ * Ab logout/login/session change application ke sabhi screens me
+ * immediately synchronize hoga.
  */
 
-import { useCallback, useEffect, useState } from 'react';
-import { restoreSession, logout as _logout, AuthUser } from '../services/authService';
+import { useEffect } from 'react';
+import { useAuthStore } from '../stores/useAuthStore';
 
 export interface AuthState {
-  userId:    string | null;
-  name:      string | null;
-  email:     string | null;
-  role:      'athlete' | 'official' | 'admin' | null;
+  userId: string | null;
+  name: string | null;
+  email: string | null;
+  role: 'athlete' | 'official' | 'admin' | null;
   isLoading: boolean;
-  /** Call this to log out and clear all stored session data. */
-  logout:    () => Promise<void>;
-  /** Call this after a successful signup/login to refresh state. */
-  refresh:   () => Promise<void>;
+
+  /**
+   * Stored session aur global auth state clear karta hai.
+   */
+  logout: () => Promise<void>;
+
+  /**
+   * Successful signup/login ke baad global state refresh karta hai.
+   */
+  refresh: () => Promise<void>;
 }
 
 export function useAuth(): AuthState {
-  const [user, setUser]       = useState<AuthUser | null>(null);
-  const [isLoading, setLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    const session = await restoreSession();
-    setUser(session);
-    setLoading(false);
-  }, []);
+  // ✅ CHANGED: Shared Zustand state/actions
+  const user = useAuthStore((state) => state.user);
+  const isLoading = useAuthStore((state) => state.isLoading);
+  const initialize = useAuthStore((state) => state.initialize);
+  const logout = useAuthStore((state) => state.logout);
+  const refresh = useAuthStore((state) => state.refresh);
 
   useEffect(() => {
-    load();
-  }, [load]);
-
-  const logout = useCallback(async () => {
-    await _logout();
-    setUser(null);
-  }, []);
+    void initialize();
+  }, [initialize]);
 
   return {
-    userId:    user?.userId  ?? null,
-    name:      user?.name    ?? null,
-    email:     user?.email   ?? null,
-    role:      (user?.role   ?? null) as AuthState['role'],
+    userId: user?.userId ?? null,
+    name: user?.name ?? null,
+    email: user?.email ?? null,
+    role: user?.role ?? null,
     isLoading,
     logout,
-    refresh: load,
+    refresh,
   };
 }

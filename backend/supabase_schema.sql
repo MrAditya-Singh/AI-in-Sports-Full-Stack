@@ -81,13 +81,15 @@ create table if not exists public.videos (
                 'squat', 'bench_press', 'deadlift',
                 'pushup', 'pullup', 'handstand'
               )),
-  video_url   text        not null,   -- Cloudinary public URL
+ video_url   text        not null,
+  cloudinary_public_id text,
+  duration_seconds double precision NOT NULL DEFAULT 10.0,
   status      text        not null default 'pending'
                 check (status in ('pending', 'processing', 'completed', 'failed')),
-  error_msg   text,                   -- set on failure; human-readable
+  error_msg   text,
   uploaded_at timestamptz not null default now()
 );
-
+ 
 alter table public.videos enable row level security;
 
 create policy "videos: athlete sees own"
@@ -204,7 +206,11 @@ create table if not exists public.notifications (
   id         uuid primary key default gen_random_uuid(),
   user_id    uuid        not null references public.users(id) on delete cascade,
   message    text        not null,
-  type       text        not null check (type in ('report_ready', 'verified', 'shortlisted', 'general')),
+  type       text        not null check (type in (
+                  'report_ready', 'verified', 'shortlisted',
+                  'verification_pending', 'verification_approved', 'verification_rejected',
+                  'general'
+                )),
   is_read    boolean     not null default false,
   created_at timestamptz not null default now()
 );
@@ -215,6 +221,26 @@ create policy "notifications: user sees own"
   on public.notifications for all
   using ( auth.uid() = user_id );
 
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 7b. PUSH TOKENS
+--     Stores Expo push tokens for real-time device notifications.
+-- ─────────────────────────────────────────────────────────────────────────────
+create table if not exists public.push_tokens (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid        not null references public.users(id) on delete cascade,
+  token      text        not null,
+  platform   text        not null default 'expo',
+  created_at timestamptz not null default now(),
+  unique (user_id, token)
+);
+
+alter table public.push_tokens enable row level security;
+
+create policy "push_tokens: user manages own"
+  on public.push_tokens for all
+  using ( auth.uid() = user_id )
+  with check ( auth.uid() = user_id );
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 8. LEADERBOARD VIEW

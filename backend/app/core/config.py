@@ -1,15 +1,9 @@
 """
-ATHLETIX — App Configuration
-core/config.py
-
-Loads all environment variables from .env using Pydantic BaseSettings.
-No secret is ever hardcoded here — all values come from .env (Rules.md §5).
-
-Usage anywhere in the app:
-    from app.core.config import settings
-    print(settings.SUPABASE_URL)
+ATHLETIX — Application Configuration
+app/core/config.py
 """
 
+# pyrefly: ignore [missing-import]
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,23 +11,34 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        extra="ignore",  # ignore unknown env vars silently
+        extra="ignore",
     )
 
-    # ─── Supabase ─────────────────────────────────────────────────────────────
+    # Supabase
     SUPABASE_URL: str
     SUPABASE_SERVICE_ROLE_KEY: str
 
-    # ─── Cloudinary ───────────────────────────────────────────────────────────
+    # Cloudinary
     CLOUDINARY_CLOUD_NAME: str
     CLOUDINARY_API_KEY: str
     CLOUDINARY_API_SECRET: str
 
-    # ─── App ──────────────────────────────────────────────────────────────────
+    # Application
     APP_ENV: str = "development"
     SECRET_KEY: str
-    ALLOWED_ORIGINS: list[str] = ["http://localhost:8081"]  # Expo default port
+
+    # Password-reset emails redirect here.
+    FRONTEND_URL: str = "http://localhost:8081"
+
+    ALLOWED_ORIGINS: list[str] = [
+        "http://localhost:8081",
+        "http://localhost:19006",
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "https://athletix.vercel.app",
+        "https://athletix.app",
+        "https://athletix-sports.onrender.com",
+    ]
 
 
-# Singleton — import this anywhere; do NOT create multiple instances
 settings = Settings()

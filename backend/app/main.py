@@ -32,6 +32,8 @@ from app.api.v1 import (
     shortlists,
     notifications,
     admin,
+    live_coach,
+    push_tokens,
 )
 
 # ─── Logging setup ────────────────────────────────────────────────────────────
@@ -42,34 +44,85 @@ logging.basicConfig(
 logger = logging.getLogger("athletix")
 
 
+def start_streamlit_coach_background():
+    try:
+        import socket, subprocess, sys
+        from pathlib import Path
+
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(1)
+        res = sock.connect_ex(('127.0.0.1', 8501))
+        sock.close()
+        if res == 0:
+            logger.info("AI Gym Coach Engine is already active on port 8501.")
+            return
+
+        # Find workspace root directory containing "ai-gym-coach-main - Copy"
+        backend_dir = Path(__file__).resolve().parent.parent
+        workspace_dir = backend_dir.parent
+        coach_script = workspace_dir / "ai-gym-coach-main - Copy" / "Main App" / "main.py"
+
+        if not coach_script.exists():
+            # Fallback check inside backend_dir
+            coach_script = backend_dir / "ai-gym-coach-main - Copy" / "Main App" / "main.py"
+
+        if coach_script.exists():
+            logger.info("Activating AI Gym Coach Engine on port 8501 (%s)...", coach_script)
+            subprocess.Popen(
+                [
+                    sys.executable,
+                    "-m",
+                    "streamlit",
+                    "run",
+                    str(coach_script),
+                    "--server.port",
+                    "8501",
+                    "--server.address",
+                    "0.0.0.0",
+                    "--server.headless",
+                    "true",
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                cwd=str(coach_script.parent.parent),
+            )
+            logger.info("AI Gym Coach Engine launched successfully in background!")
+        else:
+            logger.warning("Could not find AI Gym Coach script at %s", coach_script)
+    except Exception as exc:
+        logger.error("Could not auto-activate AI Gym Coach Engine: %s", exc)
+
+
 # ─── Lifespan (startup / shutdown hooks) ──────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("ATHLETIX backend starting up — env: %s", settings.APP_ENV)
+    start_streamlit_coach_background()
     yield
     logger.info("ATHLETIX backend shutting down.")
 
 
 # ─── App instance ─────────────────────────────────────────────────────────────
+is_dev_env = settings.APP_ENV.lower() == "development"
+
 app = FastAPI(
     title="ATHLETIX API",
     description="AI-Powered Sports Talent Assessment Platform — SIH 2026",
     version="1.0.0",
     lifespan=lifespan,
-    # Disable docs in production later; fine for hackathon dev
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url="/docs" if is_dev_env else None,
+    redoc_url="/redoc" if is_dev_env else None,
 )
 
 
 # ─── CORS ─────────────────────────────────────────────────────────────────────
-# Expo dev: any localhost origin during development
+# Expo dev: any localhost origin during development; strict origins/methods in prod
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.APP_ENV == "development" else settings.ALLOWED_ORIGINS,
+    allow_origins=["*"] if is_dev_env else settings.ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"] if is_dev_env else ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["*"] if is_dev_env else ["Authorization", "Content-Type", "Accept"],
 )
 
 
@@ -119,6 +172,8 @@ app.include_router(verifications.router, prefix=f"{API_PREFIX}/verifications", t
 app.include_router(shortlists.router,    prefix=f"{API_PREFIX}/shortlists",    tags=["Shortlists"])
 app.include_router(notifications.router, prefix=f"{API_PREFIX}/notifications", tags=["Notifications"])
 app.include_router(admin.router,         prefix=f"{API_PREFIX}/admin",         tags=["Admin"])
+app.include_router(live_coach.router,    prefix=f"{API_PREFIX}/live",          tags=["Live Coach"])
+app.include_router(push_tokens.router,   prefix=f"{API_PREFIX}/push-tokens",   tags=["Push Tokens"])
 
 
 # ─── Health check ─────────────────────────────────────────────────────────────

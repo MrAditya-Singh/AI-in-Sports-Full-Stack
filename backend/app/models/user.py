@@ -45,6 +45,22 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    access_token: str
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def password_strength(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("New password must be at least 8 characters.")
+        return v
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Auth — Response Schemas
 # ─────────────────────────────────────────────────────────────────────────────

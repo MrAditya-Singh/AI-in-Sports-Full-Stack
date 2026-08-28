@@ -87,7 +87,7 @@ async def get_assessment_detail(
             .maybe_single()
             .execute()
         )
-        if not res.data:
+        if not res or not res.data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={"success": False, "error": {"code": "NOT_FOUND", "message": "Assessment not found."}},

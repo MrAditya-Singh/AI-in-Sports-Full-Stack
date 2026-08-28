@@ -128,10 +128,26 @@ export default function MyAIReportsScreen() {
               </View>
             )}
 
+            {/* 🛡️ Submit for Verification Action */}
+            <Pressable
+              style={styles.verifyActionBtn}
+              onPress={() => {
+                router.push({
+                  pathname: '/(athlete)/verification',
+                  params: { videoId: item.video_id },
+                } as any);
+              }}
+            >
+              <Text style={styles.verifyActionBtnText}>
+                Submit For Official Verification 🛡️
+              </Text>
+            </Pressable>
+
           </View>
         )}
       </Pressable>
     );
+
   };
 
   return (
@@ -288,6 +304,24 @@ const styles = StyleSheet.create({
   feedbackTitleRed:   { fontSize: 10, fontWeight: '800', color: Colors.error, letterSpacing: 1 },
   feedbackTitleAmber: { fontSize: 10, fontWeight: '800', color: Colors.warning, letterSpacing: 1 },
   feedbackItem:       { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, paddingLeft: 4 },
+
+  verifyActionBtn: {
+    marginTop: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: `${Colors.secondary}18`,
+    borderWidth: 1,
+    borderColor: `${Colors.secondary}50`,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  verifyActionBtnText: {
+    color: Colors.secondary,
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
 
   loadingBox:  { flex: 1, justifyContent: 'center', alignItems: 'center' },
   loadingText: { color: Colors.textSecondary, marginTop: 10, fontSize: 12 },

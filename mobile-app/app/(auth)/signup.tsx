@@ -3,7 +3,9 @@
  * app/(auth)/signup.tsx
  *
  * Features:
+ *  - Dynamic Light & Dark Theme support
  *  - Animated role selector: 3 glowing cards (Athlete / Official / Admin)
+ *  - Top corner ThemeToggle for instant preview
  *  - Selected role card expands with neon border glow
  *  - Form fields fade in after role is chosen
  *  - Full validation with shake animation
@@ -27,38 +29,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import ThemeToggle from '../../components/ThemeToggle';
 import { signup, UserRole } from '../../services/authService';
 import { useAuth } from '../../hooks/useAuth';
-import { Colors } from '../../constants/colors';
-
-// ── Role card definitions ──────────────────────────────────────────────────────
-const ROLES: { key: UserRole; icon: string; label: string; desc: string; glow: string }[] = [
-  {
-    key:   'athlete',
-    icon:  '🏃',
-    label: 'Athlete',
-    desc:  'Upload videos & get AI-scored assessments',
-    glow:  Colors.secondary,   // neon green
-  },
-  {
-    key:   'official',
-    icon:  '🏅',
-    label: 'Official',
-    desc:  'Scout talent & verify performances',
-    glow:  Colors.primary,     // electric blue
-  },
-  {
-    key:   'admin',
-    icon:  '⚙️',
-    label: 'Admin',
-    desc:  'Manage the platform & analytics',
-    glow:  Colors.warning,     // amber
-  },
-];
+import { useTheme } from '../../hooks/useTheme';
 
 export default function SignupScreen() {
   const router      = useRouter();
   const { refresh } = useAuth();
+  const { colors, isDark } = useTheme();
 
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   const [name,     setName]     = useState('');
@@ -67,25 +46,48 @@ export default function SignupScreen() {
   const [error,    setError]    = useState('');
   const [loading,  setLoading]  = useState(false);
 
+  const roles = [
+    {
+      key:   'athlete' as UserRole,
+      icon:  '🏃',
+      label: 'Athlete',
+      desc:  'Upload videos & get AI-scored assessments',
+      glow:  colors.secondary,
+    },
+    {
+      key:   'official' as UserRole,
+      icon:  '🏅',
+      label: 'Official',
+      desc:  'Scout talent & verify performances',
+      glow:  colors.primary,
+    },
+    {
+      key:   'admin' as UserRole,
+      icon:  '⚙️',
+      label: 'Admin',
+      desc:  'Manage the platform & analytics',
+      glow:  colors.warning,
+    },
+  ];
+
   // Animations
   const headerAnim = useRef(new Animated.Value(0)).current;
   const formAnim   = useRef(new Animated.Value(0)).current;
   const shakeAnim  = useRef(new Animated.Value(0)).current;
-  const roleAnims  = useRef(ROLES.map(() => new Animated.Value(0))).current;
+  const roleAnims  = useRef(roles.map(() => new Animated.Value(0))).current;
 
   React.useEffect(() => {
     Animated.timing(headerAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
-    ROLES.forEach((_, i) => {
+    roles.forEach((_, i) => {
       Animated.spring(roleAnims[i], {
         toValue: 1, delay: 150 + i * 100, useNativeDriver: true, tension: 60, friction: 8,
       }).start();
     });
-  }, []);
+  }, [headerAnim]);
 
   function onSelectRole(role: UserRole) {
     setSelectedRole(role);
     setError('');
-    // Animate form in
     Animated.timing(formAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
   }
 
@@ -109,7 +111,7 @@ export default function SignupScreen() {
   }
 
   const strength = passwordStrength();
-  const strengthColors = ['#FF4444', '#FFB800', '#39FF14'];
+  const strengthColors = [colors.error, colors.warning, colors.secondary];
   const strengthLabels = ['Weak', 'Fair', 'Strong'];
 
   async function handleSignup() {
@@ -139,24 +141,43 @@ export default function SignupScreen() {
   }
 
   return (
-    <LinearGradient colors={['#070B14', '#0A0E1A', '#0D1525']} style={styles.gradient}>
+    <LinearGradient colors={colors.gradientMain} style={styles.gradient}>
       <SafeAreaView style={styles.safe}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.kav}>
+          {/* Top corner ThemeToggle */}
+          <View style={styles.topRightToggle}>
+            <ThemeToggle compact />
+          </View>
+
           <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
 
             {/* ── Back + Header ── */}
             <Animated.View style={[styles.header, { opacity: headerAnim }]}>
               <Pressable onPress={() => router.back()} style={styles.backBtn}>
-                <Text style={styles.backText}>← Back</Text>
+                <Text style={[styles.backText, { color: colors.primary }]}>← Back</Text>
               </Pressable>
-              <Text style={styles.logoText}>ATHLETIX</Text>
-              <Text style={styles.headerSub}>Create your account</Text>
+              <Text
+                style={[
+                  styles.logoText,
+                  {
+                    color: colors.primary,
+                    textShadowColor: isDark ? colors.primary : 'rgba(2, 132, 199, 0.3)',
+                  },
+                ]}
+              >
+                ATHLETIX
+              </Text>
+              <Text style={[styles.headerSub, { color: colors.textSecondary }]}>
+                Create your account
+              </Text>
             </Animated.View>
 
             {/* ── Step 1: Role selector ── */}
-            <Text style={styles.stepLabel}>STEP 1 — CHOOSE YOUR ROLE</Text>
+            <Text style={[styles.stepLabel, { color: colors.textMuted }]}>
+              STEP 1 — CHOOSE YOUR ROLE
+            </Text>
             <View style={styles.roleRow}>
-              {ROLES.map((r, i) => {
+              {roles.map((r, i) => {
                 const isSelected = selectedRole === r.key;
                 return (
                   <Animated.View
@@ -172,20 +193,35 @@ export default function SignupScreen() {
                     <Pressable
                       style={[
                         styles.roleCard,
+                        {
+                          backgroundColor: colors.surface,
+                          borderColor: colors.border,
+                          shadowColor: colors.cardShadow,
+                        },
                         isSelected && {
                           borderColor: r.glow,
                           shadowColor: r.glow,
-                          shadowOpacity: 0.5,
-                          shadowRadius: 12,
-                          elevation: 10,
+                          shadowOpacity: 0.35,
+                          shadowRadius: 10,
+                          elevation: 6,
                           backgroundColor: `${r.glow}18`,
                         },
                       ]}
                       onPress={() => onSelectRole(r.key)}
                     >
                       <Text style={styles.roleIcon}>{r.icon}</Text>
-                      <Text style={[styles.roleLabel, isSelected && { color: r.glow }]}>{r.label}</Text>
-                      <Text style={styles.roleDesc}>{r.desc}</Text>
+                      <Text
+                        style={[
+                          styles.roleLabel,
+                          { color: colors.textPrimary },
+                          isSelected && { color: r.glow },
+                        ]}
+                      >
+                        {r.label}
+                      </Text>
+                      <Text style={[styles.roleDesc, { color: colors.textSecondary }]}>
+                        {r.desc}
+                      </Text>
                       {isSelected && (
                         <View style={[styles.selectedDot, { backgroundColor: r.glow }]} />
                       )}
@@ -200,18 +236,33 @@ export default function SignupScreen() {
               <Animated.View
                 style={[
                   styles.formCard,
-                  { opacity: formAnim, transform: [{ translateX: shakeAnim }] },
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    shadowColor: colors.cardShadow,
+                    opacity: formAnim,
+                    transform: [{ translateX: shakeAnim }],
+                  },
                 ]}
               >
-                <Text style={styles.stepLabel}>STEP 2 — YOUR DETAILS</Text>
+                <Text style={[styles.stepLabel, { color: colors.textMuted }]}>
+                  STEP 2 — YOUR DETAILS
+                </Text>
 
                 {/* Name */}
                 <View style={styles.fieldWrap}>
-                  <Text style={styles.label}>FULL NAME</Text>
+                  <Text style={[styles.label, { color: colors.textMuted }]}>FULL NAME</Text>
                   <TextInput
-                    style={styles.input}
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : colors.surfaceElevated,
+                        borderColor: colors.border,
+                        color: colors.textPrimary,
+                      },
+                    ]}
                     placeholder="e.g. Rahul Sharma"
-                    placeholderTextColor={Colors.textMuted}
+                    placeholderTextColor={colors.textMuted}
                     value={name}
                     onChangeText={setName}
                     autoCapitalize="words"
@@ -220,11 +271,18 @@ export default function SignupScreen() {
 
                 {/* Email */}
                 <View style={styles.fieldWrap}>
-                  <Text style={styles.label}>EMAIL</Text>
+                  <Text style={[styles.label, { color: colors.textMuted }]}>EMAIL</Text>
                   <TextInput
-                    style={styles.input}
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : colors.surfaceElevated,
+                        borderColor: colors.border,
+                        color: colors.textPrimary,
+                      },
+                    ]}
                     placeholder="you@example.com"
-                    placeholderTextColor={Colors.textMuted}
+                    placeholderTextColor={colors.textMuted}
                     keyboardType="email-address"
                     autoCapitalize="none"
                     autoCorrect={false}
@@ -235,11 +293,18 @@ export default function SignupScreen() {
 
                 {/* Password */}
                 <View style={styles.fieldWrap}>
-                  <Text style={styles.label}>PASSWORD</Text>
+                  <Text style={[styles.label, { color: colors.textMuted }]}>PASSWORD</Text>
                   <TextInput
-                    style={styles.input}
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : colors.surfaceElevated,
+                        borderColor: colors.border,
+                        color: colors.textPrimary,
+                      },
+                    ]}
                     placeholder="Min 8 characters"
-                    placeholderTextColor={Colors.textMuted}
+                    placeholderTextColor={colors.textMuted}
                     secureTextEntry
                     value={password}
                     onChangeText={setPassword}
@@ -252,7 +317,7 @@ export default function SignupScreen() {
                           key={i}
                           style={[
                             styles.strengthBar,
-                            { backgroundColor: i < strength ? strengthColors[strength - 1] : Colors.border },
+                            { backgroundColor: i < strength ? strengthColors[strength - 1] : colors.border },
                           ]}
                         />
                       ))}
@@ -267,8 +332,16 @@ export default function SignupScreen() {
 
                 {/* Error */}
                 {error ? (
-                  <View style={styles.errorBanner}>
-                    <Text style={styles.errorText}>⚠  {error}</Text>
+                  <View
+                    style={[
+                      styles.errorBanner,
+                      {
+                        backgroundColor: `${colors.error}15`,
+                        borderColor: `${colors.error}35`,
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.errorText, { color: colors.error }]}>⚠  {error}</Text>
                   </View>
                 ) : null}
 
@@ -279,12 +352,16 @@ export default function SignupScreen() {
                   disabled={loading}
                 >
                   <LinearGradient
-                    colors={['#39FF14', '#28CC0F']}
+                    colors={
+                      isDark
+                        ? ['#39FF14', '#28CC0F']
+                        : ['#059669', '#047857']
+                    }
                     start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                     style={styles.btnGradient}
                   >
                     {loading
-                      ? <ActivityIndicator color="#000" />
+                      ? <ActivityIndicator color="#FFF" />
                       : <Text style={styles.btnText}>CREATE ACCOUNT →</Text>
                     }
                   </LinearGradient>
@@ -294,9 +371,9 @@ export default function SignupScreen() {
 
             {/* Sign in link */}
             <Pressable onPress={() => router.replace('/(auth)/login')} style={styles.linkRow}>
-              <Text style={styles.linkText}>
+              <Text style={[styles.linkText, { color: colors.textSecondary }]}>
                 Already have an account?{'  '}
-                <Text style={styles.linkHighlight}>Sign in →</Text>
+                <Text style={[styles.linkHighlight, { color: colors.primary }]}>Sign in →</Text>
               </Text>
             </Pressable>
 
@@ -311,85 +388,87 @@ const styles = StyleSheet.create({
   gradient: { flex: 1 },
   safe:     { flex: 1 },
   kav:      { flex: 1 },
-  scroll:   { flexGrow: 1, paddingHorizontal: 20, paddingVertical: 24 },
+  scroll:   { flexGrow: 1, paddingHorizontal: 20, paddingVertical: 28 },
 
-  header:    { alignItems: 'center', marginBottom: 32 },
-  backBtn:   { alignSelf: 'flex-start', marginBottom: 12 },
-  backText:  { color: Colors.primary, fontSize: 14, fontWeight: '600' },
-  logoText:  {
-    fontSize: 32, fontWeight: '900', letterSpacing: 5,
-    color: Colors.primary,
-    textShadowColor: Colors.primary,
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 14,
+  topRightToggle: {
+    position: 'absolute',
+    top: 14,
+    right: 20,
+    zIndex: 10,
   },
-  headerSub: { color: Colors.textSecondary, fontSize: 13, marginTop: 4 },
+
+  header: { alignItems: 'center', marginBottom: 28 },
+  backBtn:  { alignSelf: 'flex-start', marginBottom: 12 },
+  backText: { fontSize: 13, fontWeight: '700' },
+  logoText: {
+    fontSize: 34, fontWeight: '900', letterSpacing: 5,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 16,
+  },
+  headerSub: { fontSize: 12, letterSpacing: 1.5, marginTop: 4, textTransform: 'uppercase' },
 
   stepLabel: {
-    fontSize: 10, letterSpacing: 2.5, color: Colors.textMuted, fontWeight: '700',
-    marginBottom: 14, marginTop: 4,
+    fontSize: 10, letterSpacing: 2, fontWeight: '800',
+    marginBottom: 12,
   },
 
-  // Role cards
-  roleRow:     { flexDirection: 'row', gap: 10, marginBottom: 24 },
-  roleCardWrap:{ flex: 1 },
+  roleRow:      { flexDirection: 'row', gap: 10, marginBottom: 20 },
+  roleCardWrap: { flex: 1 },
   roleCard: {
-    backgroundColor: Colors.surface,
     borderRadius: 18,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
     padding: 14,
+    borderWidth: 1.5,
     alignItems: 'center',
-    minHeight: 130,
+    minHeight: 120,
     justifyContent: 'center',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
   },
   roleIcon:    { fontSize: 26, marginBottom: 6 },
-  roleLabel:   { fontSize: 13, fontWeight: '800', color: Colors.textPrimary, marginBottom: 4 },
-  roleDesc:    { fontSize: 10, color: Colors.textMuted, textAlign: 'center', lineHeight: 14 },
-  selectedDot: { width: 7, height: 7, borderRadius: 4, marginTop: 8 },
+  roleLabel:   { fontSize: 13, fontWeight: '800', marginBottom: 4 },
+  roleDesc:    { fontSize: 9, textAlign: 'center', lineHeight: 12 },
+  selectedDot: { width: 6, height: 6, borderRadius: 3, marginTop: 6 },
 
-  // Form card
   formCard: {
-    backgroundColor: 'rgba(19, 25, 41, 0.92)',
     borderRadius: 22,
-    padding: 24,
+    padding: 22,
     borderWidth: 1,
-    borderColor: 'rgba(0, 212, 255, 0.12)',
-    marginBottom: 16,
+    marginBottom: 20,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
   },
   fieldWrap: { marginBottom: 16 },
-  label:     { fontSize: 10, letterSpacing: 2, color: Colors.textMuted, marginBottom: 6, fontWeight: '700' },
+  label:     { fontSize: 10, letterSpacing: 2, marginBottom: 6, fontWeight: '700' },
   input: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: Colors.border,
-    color: Colors.textPrimary,
-    fontSize: 15,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    fontSize: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
 
-  strengthWrap:  { flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 6 },
+  strengthWrap:  { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
   strengthBar:   { flex: 1, height: 3, borderRadius: 2 },
-  strengthLabel: { fontSize: 11, fontWeight: '700', marginLeft: 4 },
+  strengthLabel: { fontSize: 10, fontWeight: '700', marginLeft: 4 },
 
   errorBanner: {
-    backgroundColor: 'rgba(255, 68, 68, 0.12)',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255, 68, 68, 0.3)',
     padding: 12,
     marginBottom: 16,
   },
-  errorText: { color: Colors.error, fontSize: 13 },
+  errorText: { fontSize: 13 },
 
-  btn:         { borderRadius: 14, overflow: 'hidden', marginTop: 4 },
+  btn:         { borderRadius: 14, overflow: 'hidden', marginTop: 6 },
   btnPressed:  { opacity: 0.85 },
   btnGradient: { paddingVertical: 16, alignItems: 'center', justifyContent: 'center' },
-  btnText:     { color: '#000', fontWeight: '900', fontSize: 14, letterSpacing: 2 },
+  btnText:     { color: '#FFFFFF', fontWeight: '900', fontSize: 14, letterSpacing: 2 },
 
-  linkRow:       { alignItems: 'center', paddingVertical: 20 },
-  linkText:      { color: Colors.textSecondary, fontSize: 14 },
-  linkHighlight: { color: Colors.primary, fontWeight: '700' },
+  linkRow:       { alignItems: 'center', paddingVertical: 12 },
+  linkText:      { fontSize: 13 },
+  linkHighlight: { fontWeight: '700' },
 });

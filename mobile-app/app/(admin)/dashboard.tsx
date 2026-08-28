@@ -1,9 +1,6 @@
 /**
- * ATHLETIX — Admin Dashboard (Phase 8: FULLY IMPLEMENTED)
+ * ATHLETIX — Admin Dashboard
  * app/(admin)/dashboard.tsx
- *
- * Connected to live platform analytics, real-time metrics, quick action tiles,
- * and user role management navigation.
  */
 
 import React from 'react';
@@ -11,88 +8,243 @@ import {
   ActivityIndicator,
   Animated,
   Pressable,
-  ScrollView,
+  RefreshControl,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
 import { useAuth } from '../../hooks/useAuth';
 import { useAdmin } from '../../hooks/useAdmin';
-import { Colors } from '../../constants/colors';
+import { useTheme } from '../../hooks/useTheme';
 import NotificationBell from '../../components/NotificationBell';
+import ThemeToggle from '../../components/ThemeToggle';
 
-type MetricCardProps = { value: string; label: string; icon: string; color: string };
-function MetricCard({ value, label, icon, color }: MetricCardProps) {
+type MetricCardProps = {
+  value: string;
+  label: string;
+  icon: string;
+  color: string;
+  surfaceColor: string;
+  labelColor: string;
+};
+
+function MetricCard({
+  value,
+  label,
+  icon,
+  color,
+  surfaceColor,
+  labelColor,
+}: MetricCardProps) {
   return (
-    <View style={[styles.metricCard, { borderTopColor: color, borderTopWidth: 2 }]}>
+    <View
+      style={[
+        styles.metricCard,
+        {
+          backgroundColor: surfaceColor,
+          borderTopColor: color,
+          borderTopWidth: 3,
+        },
+      ]}
+    >
       <Text style={styles.metricIcon}>{icon}</Text>
-      <Text style={[styles.metricValue, { color }]}>{value}</Text>
-      <Text style={styles.metricLabel}>{label}</Text>
+
+      <Text
+        style={[
+          styles.metricValue,
+          { color },
+        ]}
+      >
+        {value}
+      </Text>
+
+      <Text style={[styles.metricLabel, { color: labelColor }]}>
+        {label}
+      </Text>
     </View>
   );
 }
 
 export default function AdminDashboard() {
   const router = useRouter();
-  const { name, email, logout } = useAuth();
-  const { analytics, isLoading, refreshAdmin } = useAdmin();
-  const fadeAnim = React.useRef(new Animated.Value(0)).current;
+  const { name, role, logout } = useAuth();
+  const { colors, isDark } = useTheme();
 
   React.useEffect(() => {
-    Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();
-  }, []);
+    if (role && role !== 'admin') {
+      router.replace(
+        role === 'athlete'
+          ? '/(athlete)/dashboard'
+          : '/(official)/dashboard',
+      );
+    }
+  }, [role, router]);
 
-  const firstName = name?.split(' ')[0] ?? 'Admin';
+  const {
+    analytics,
+    isLoading,
+    refreshAdmin,
+  } = useAdmin();
 
-  const userStats    = analytics?.users;
-  const videoStats   = analytics?.videos;
-  const scoutStats   = analytics?.scouting;
-  const aiStats      = analytics?.assessments;
+  const fadeAnim =
+    React.useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 600,
+      useNativeDriver: true,
+    }).start();
+  }, [fadeAnim]);
+
+  const firstName =
+    name?.split(' ')[0] ?? 'Admin';
+
+  const userStats = analytics?.users;
+  const videoStats = analytics?.videos;
+  const scoutStats = analytics?.scouting;
+  const aiStats = analytics?.assessments;
 
   return (
-    <LinearGradient colors={['#0A0800', '#0A0E1A', '#0A0E1A']} style={styles.gradient}>
+    <LinearGradient
+      colors={colors.gradientMain}
+      style={styles.gradient}
+    >
       <SafeAreaView style={styles.safe}>
-        <Animated.ScrollView style={{ opacity: fadeAnim }} contentContainerStyle={styles.scroll}>
-
-          {/* ── Header ── */}
+        <Animated.ScrollView
+          style={{ opacity: fadeAnim }}
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={isLoading}
+              onRefresh={() => void refreshAdmin()}
+              tintColor={colors.warning}
+              colors={[colors.warning]}
+            />
+          }
+        >
+          {/* Header */}
           <View style={styles.header}>
             <View>
-              <Text style={styles.greeting}>Platform Control</Text>
-              <Text style={styles.name}>{firstName} ⚙️</Text>
-              <View style={styles.roleBadge}>
-                <Text style={styles.roleBadgeText}>🟡 ADMIN</Text>
+              <Text style={[styles.greeting, { color: colors.textSecondary }]}>
+                Platform Control
+              </Text>
+
+              <Text style={[styles.name, { color: colors.textPrimary }]}>
+                {firstName} ⚙️
+              </Text>
+
+              <View
+                style={[
+                  styles.roleBadge,
+                  {
+                    backgroundColor: `${colors.warning}20`,
+                    borderColor: `${colors.warning}50`,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.roleBadgeText,
+                    { color: colors.warning },
+                  ]}
+                >
+                  🟡 ADMIN
+                </Text>
               </View>
             </View>
-            <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
-              <NotificationBell routeTarget="/(athlete)/notifications" />
-              <Pressable onPress={logout} style={styles.logoutBtn}>
-                <Text style={styles.logoutText}>Sign out</Text>
+
+            <View style={styles.headerActions}>
+              <ThemeToggle compact />
+              <NotificationBell
+                routeTarget="/(athlete)/notifications"
+              />
+
+              <Pressable
+                onPress={() => void logout()}
+                style={({ pressed }) => [
+                  styles.logoutBtn,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: isDark ? 'transparent' : colors.surfaceElevated,
+                  },
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.logoutText,
+                    { color: colors.textMuted },
+                  ]}
+                >
+                  Sign out
+                </Text>
               </Pressable>
             </View>
           </View>
 
-          {/* ── System Status Banner ── */}
+          {/* System status */}
           <LinearGradient
-            colors={['rgba(255,184,0,0.12)', 'rgba(255,184,0,0.03)']}
-            style={styles.statusBanner}
+            colors={
+              isDark
+                ? ['rgba(255,184,0,0.12)', 'rgba(255,184,0,0.03)']
+                : ['rgba(217,119,6,0.12)', 'rgba(217,119,6,0.03)']
+            }
+            style={[styles.statusBanner, { borderColor: `${colors.warning}35` }]}
           >
-            <View style={styles.statusDot} />
+            <View style={[styles.statusDot, { backgroundColor: colors.success }]} />
+
             <View style={{ flex: 1 }}>
-              <Text style={styles.statusText}>All systems operational · Live DB connected</Text>
-              <Text style={styles.statusSub}>FastAPI v1.0.0 · Supabase Postgres · MediaPipe BlazePose</Text>
+              <Text style={[styles.statusText, { color: colors.textPrimary }]}>
+                All systems operational · Live DB connected
+              </Text>
+
+              <Text style={[styles.statusSub, { color: colors.textSecondary }]}>
+                FastAPI · Supabase Postgres · MediaPipe BlazePose
+              </Text>
             </View>
           </LinearGradient>
 
-          {/* ── Platform Metrics Grid ── */}
-          <Text style={styles.sectionTitle}>REAL-TIME PLATFORM METRICS</Text>
-          {isLoading ? (
+          {/* Platform metrics */}
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
+              REAL-TIME PLATFORM METRICS
+            </Text>
+
+            <Pressable
+              onPress={() => void refreshAdmin()}
+              disabled={isLoading}
+              style={({ pressed }) => [
+                styles.refreshBtn,
+                {
+                  backgroundColor: `${colors.primary}20`,
+                  borderColor: `${colors.primary}40`,
+                },
+                pressed && styles.pressed,
+              ]}
+            >
+              <Text style={[styles.refreshText, { color: colors.primary }]}>
+                {isLoading ? '...' : '↻ Refresh'}
+              </Text>
+            </Pressable>
+          </View>
+
+          {isLoading && !analytics ? (
             <View style={styles.loadingBox}>
-              <ActivityIndicator color={Colors.warning} size="large" />
-              <Text style={styles.loadingText}>Computing platform metrics...</Text>
+              <ActivityIndicator
+                color={colors.warning}
+                size="large"
+              />
+
+              <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+                Computing platform metrics...
+              </Text>
             </View>
           ) : (
             <View style={styles.metricsGrid}>
@@ -100,58 +252,103 @@ export default function AdminDashboard() {
                 value={String(userStats?.total ?? 0)}
                 label={`Users (${userStats?.athletes ?? 0} Ath / ${userStats?.officials ?? 0} Off)`}
                 icon="👥"
-                color={Colors.primary}
+                color={colors.primary}
+                surfaceColor={colors.surface}
+                labelColor={colors.textMuted}
               />
+
               <MetricCard
                 value={String(videoStats?.total ?? 0)}
                 label={`Videos (${videoStats?.completed ?? 0} Done)`}
                 icon="🎬"
-                color={Colors.secondary}
+                color={colors.secondary}
+                surfaceColor={colors.surface}
+                labelColor={colors.textMuted}
               />
+
               <MetricCard
                 value={String(aiStats?.total ?? 0)}
                 label={`AI Reports (${aiStats?.avg_score ?? 0} Avg Score)`}
                 icon="🤖"
-                color={Colors.warning}
+                color={colors.warning}
+                surfaceColor={colors.surface}
+                labelColor={colors.textMuted}
               />
+
               <MetricCard
                 value={String(scoutStats?.shortlisted ?? 0)}
                 label={`Shortlisted (${scoutStats?.verifications ?? 0} Verified)`}
                 icon="⭐"
-                color={Colors.gold}
+                color={colors.accent}
+                surfaceColor={colors.surface}
+                labelColor={colors.textMuted}
               />
             </View>
           )}
 
-          {/* ── Quick Action Nav Tiles ── */}
-          <Text style={styles.sectionTitle}>ADMINISTRATION & OVERVIEW</Text>
-          <View style={styles.actionsGrid}>
-            <Pressable
-              style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.75 }]}
-              onPress={() => router.push('/(admin)/users' as any)}
-            >
-              <Text style={styles.actionBtnIcon}>👥</Text>
-              <Text style={styles.actionBtnLabel}>Manage Users</Text>
-              <Text style={styles.actionBtnNote}>Role elevation & directory</Text>
-            </Pressable>
+          {/* Quick Management Links */}
+          <Text style={[styles.sectionTitle, { color: colors.textMuted, marginTop: 24, marginBottom: 12 }]}>
+            ADMINISTRATION MANAGEMENT
+          </Text>
 
-            <Pressable
-              style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.75 }]}
-              onPress={() => router.push('/(admin)/analytics' as any)}
-            >
-              <Text style={styles.actionBtnIcon}>📊</Text>
-              <Text style={styles.actionBtnLabel}>Platform Analytics</Text>
-              <Text style={styles.actionBtnNote}>Deep metrics & AI SLA</Text>
-            </Pressable>
+          <View style={styles.actionGrid}>
+            {[
+              {
+                title: 'User Management',
+                sub: 'Inspect & manage athlete/official accounts',
+                icon: '👥',
+                route: '/(admin)/users',
+                color: colors.primary,
+              },
+              {
+                title: 'Video Submissions',
+                sub: 'Audit uploaded exercise video assets',
+                icon: '🎬',
+                route: '/(admin)/videos',
+                color: colors.secondary,
+              },
+              {
+                title: 'Verification Queue',
+                sub: 'Review official talent verifications',
+                icon: '🛡️',
+                route: '/(admin)/verifications',
+                color: colors.warning,
+              },
+              {
+                title: 'Analytics Intelligence',
+                sub: 'Detailed system charts & performance breakdown',
+                icon: '📊',
+                route: '/(admin)/analytics',
+                color: colors.accent,
+              },
+            ].map((item) => (
+              <Pressable
+                key={item.title}
+                style={({ pressed }) => [
+                  styles.adminCard,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    borderLeftColor: item.color,
+                    borderLeftWidth: 4,
+                  },
+                  pressed && styles.pressed,
+                ]}
+                onPress={() => router.push(item.route as any)}
+              >
+                <Text style={styles.adminCardIcon}>{item.icon}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.adminCardTitle, { color: colors.textPrimary }]}>
+                    {item.title}
+                  </Text>
+                  <Text style={[styles.adminCardSub, { color: colors.textSecondary }]}>
+                    {item.sub}
+                  </Text>
+                </View>
+                <Text style={[styles.adminCardArrow, { color: item.color }]}>→</Text>
+              </Pressable>
+            ))}
           </View>
-
-          {/* ── Admin Identity Card ── */}
-          <View style={styles.identityCard}>
-            <Text style={styles.identityLabel}>ADMINISTRATOR SESSION</Text>
-            <Text style={styles.identityEmail}>{email}</Text>
-            <Text style={styles.identityRole}>Full access privileges across all tables & endpoints</Text>
-          </View>
-
         </Animated.ScrollView>
       </SafeAreaView>
     </LinearGradient>
@@ -160,59 +357,113 @@ export default function AdminDashboard() {
 
 const styles = StyleSheet.create({
   gradient: { flex: 1 },
-  safe:     { flex: 1 },
-  scroll:   { padding: 24, paddingBottom: 48 },
+  safe: { flex: 1 },
+  scroll: { padding: 20, paddingBottom: 48 },
 
-  header:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 },
-  greeting:  { fontSize: 14, color: Colors.textSecondary },
-  name:      { fontSize: 28, fontWeight: '900', color: Colors.textPrimary, marginVertical: 2 },
-  roleBadge: {
-    alignSelf: 'flex-start', backgroundColor: `${Colors.warning}20`,
-    borderRadius: 20, borderWidth: 1, borderColor: `${Colors.warning}50`,
-    paddingHorizontal: 10, paddingVertical: 4, marginTop: 4,
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 20,
   },
-  roleBadgeText: { color: Colors.warning, fontSize: 11, fontWeight: '700', letterSpacing: 1.5 },
-  logoutBtn:     { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: Colors.border },
-  logoutText:    { color: Colors.textMuted, fontSize: 11 },
+  greeting: { fontSize: 13 },
+  name: { fontSize: 26, fontWeight: '900', marginVertical: 2 },
+  roleBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: 20,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginTop: 4,
+  },
+  roleBadgeText: { fontSize: 11, fontWeight: '700', letterSpacing: 1.5 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  logoutBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  logoutText: { fontSize: 11 },
 
   statusBanner: {
-    flexDirection: 'row', alignItems: 'center',
-    borderRadius: 14, padding: 14,
-    borderWidth: 1, borderColor: 'rgba(255,184,0,0.2)',
-    marginBottom: 28,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 20,
+    gap: 12,
   },
-  statusDot:  { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.secondary, marginRight: 10 },
-  statusText: { fontSize: 13, color: Colors.textPrimary, fontWeight: '700' },
-  statusSub:  { fontSize: 10, color: Colors.textMuted, marginTop: 2 },
+  statusDot: { width: 10, height: 10, borderRadius: 5 },
+  statusText: { fontSize: 13, fontWeight: '800' },
+  statusSub: { fontSize: 11, marginTop: 2 },
 
-  sectionTitle: { fontSize: 10, letterSpacing: 2.5, color: Colors.textMuted, fontWeight: '700', marginBottom: 14, marginTop: 8 },
-
-  loadingBox: { padding: 30, alignItems: 'center' },
-  loadingText: { color: Colors.textSecondary, marginTop: 10, fontSize: 12 },
-
-  metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 28 },
-  metricCard:  {
-    width: '47%', backgroundColor: Colors.surface, borderRadius: 16,
-    padding: 16, alignItems: 'center', borderWidth: 1, borderColor: Colors.border,
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
   },
-  metricIcon:  { fontSize: 22, marginBottom: 6 },
-  metricValue: { fontSize: 24, fontWeight: '900', marginBottom: 4 },
-  metricLabel: { fontSize: 9, color: Colors.textMuted, letterSpacing: 1, textTransform: 'uppercase', textAlign: 'center' },
-
-  actionsGrid: { flexDirection: 'row', gap: 10, marginBottom: 28 },
-  actionBtn: {
-    flex: 1, backgroundColor: Colors.surface, borderRadius: 16,
-    padding: 18, borderWidth: 1, borderColor: Colors.border, alignItems: 'center',
+  sectionTitle: {
+    fontSize: 10,
+    letterSpacing: 2,
+    fontWeight: '800',
   },
-  actionBtnIcon:  { fontSize: 26, marginBottom: 8 },
-  actionBtnLabel: { fontSize: 13, fontWeight: '800', color: Colors.textPrimary, marginBottom: 4 },
-  actionBtnNote:  { fontSize: 10, color: Colors.textMuted, textAlign: 'center' },
-
-  identityCard: {
-    backgroundColor: Colors.surface, borderRadius: 16, padding: 18,
-    borderWidth: 1, borderColor: Colors.border, alignItems: 'center',
+  refreshBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
   },
-  identityLabel: { fontSize: 10, letterSpacing: 2, color: Colors.textMuted, marginBottom: 6 },
-  identityEmail: { fontSize: 14, fontWeight: '700', color: Colors.warning, marginBottom: 4 },
-  identityRole:  { fontSize: 11, color: Colors.textSecondary, textAlign: 'center' },
+  refreshText: { fontSize: 11, fontWeight: '700' },
+
+  loadingBox: {
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: { marginTop: 10, fontSize: 12 },
+
+  metricsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  metricCard: {
+    width: '48%',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  metricIcon: { fontSize: 22, marginBottom: 4 },
+  metricValue: { fontSize: 24, fontWeight: '900', marginBottom: 2 },
+  metricLabel: { fontSize: 10, lineHeight: 14 },
+
+  actionGrid: {
+    gap: 10,
+  },
+  adminCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    gap: 14,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  adminCardIcon: { fontSize: 24 },
+  adminCardTitle: { fontSize: 14, fontWeight: '800', marginBottom: 2 },
+  adminCardSub: { fontSize: 11 },
+  adminCardArrow: { fontSize: 18, fontWeight: '900' },
+
+  pressed: { opacity: 0.8 },
 });

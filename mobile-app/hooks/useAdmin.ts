@@ -12,6 +12,7 @@ import {
   getAdminUsers,
   getAdminVideos,
   updateUserRole,
+  deleteAdminVideo,
   AdminVideoItem,
   PlatformAnalyticsData,
 } from '../services/adminService';
@@ -85,6 +86,20 @@ export function useAdmin() {
     }
   };
 
+  const deleteVideo = async (videoId: string) => {
+    setIsUpdatingId(videoId);
+    try {
+      await deleteAdminVideo(videoId);
+      await Promise.all([loadVideos(), loadAnalytics()]);
+      return true;
+    } catch (err: any) {
+      setError(err?.userMessage ?? 'Failed to delete video.');
+      return false;
+    } finally {
+      setIsUpdatingId(null);
+    }
+  };
+
   return {
     analytics,
     users,
@@ -95,6 +110,7 @@ export function useAdmin() {
     isUpdatingId,
     error,
     changeRole,
+    deleteVideo,
     refreshAdmin: loadAll,
   };
 }
