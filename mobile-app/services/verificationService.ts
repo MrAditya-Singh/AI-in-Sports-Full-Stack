@@ -265,38 +265,68 @@ export async function submitVerificationRequest(
       }
     }
 
-    // Expo Web provides a browser File object.
-    if (
-      Platform.OS === 'web' &&
-      document.file
-    ) {
-      formData.append(
-        'documents',
-        document.file,
-        document.name,
-      );
+    const docName = document.name || (mimeType === 'application/pdf' ? 'document.pdf' : 'document.jpg');
+
+    if (Platform.OS === 'web') {
+      let webFile: Blob | null = null;
+      if (typeof File !== 'undefined' && document.file instanceof File) {
+        webFile = document.file;
+      } else if (typeof Blob !== 'undefined' && document.file instanceof Blob) {
+        webFile = document.file;
+      } else if (document.uri) {
+        try {
+          const res = await fetch(document.uri);
+          if (res.ok) {
+            webFile = await res.blob();
+          }
+        } catch (e) {
+          console.warn('Could not fetch document blob on web:', e);
+        }
+      }
+
+      if (webFile) {
+        formData.append(
+          'documents',
+          webFile,
+          docName,
+        );
+      } else {
+        formData.append(
+          'documents',
+          {
+            uri: document.uri,
+            name: docName,
+            type: mimeType,
+          } as any,
+        );
+      }
     } else {
       // React Native Android/iOS multipart file.
       formData.append(
         'documents',
         {
           uri: document.uri,
-          name: document.name || 'document.jpg',
+          name: docName,
           type: mimeType,
         } as any,
       );
     }
   }
 
+  const config: Record<string, any> = {
+    timeout: 120_000,
+  };
+
+  if (Platform.OS !== 'web') {
+    config.headers = {
+      'Content-Type': 'multipart/form-data',
+    };
+  }
+
   const response = await api.post(
     '/verifications/requests',
     formData,
-    {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-      timeout: 120_000,
-    },
+    config,
   );
 
   const request =
