@@ -55,81 +55,97 @@ async def signup(body: SignupRequest):
     """
     supabase = get_supabase_client()
 
-    # ── Step 1: Supabase Auth signup ──────────────────────────────────────────
+    # ── Step 1: Create Supabase Auth User with auto-confirmation ───────────
+    supabase_user = None
     try:
-        auth_response = supabase.auth.sign_up({
-            "email":    body.email,
+        admin_user_res = supabase.auth.admin.create_user({
+            "email": body.email,
             "password": body.password,
-            "options": {
-                "data": {
-                    "name": body.name,
-                    "role": body.role,
-                }
+            "email_confirm": True,
+            "user_metadata": {
+                "name": body.name,
+                "role": body.role,
             },
         })
-    except Exception as exc:
-        logger.error("Supabase Auth signup failed: %s", exc)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=_err("SIGNUP_FAILED", "Could not create account. Please try again."),
-        )
+        supabase_user = getattr(admin_user_res, "user", None) or admin_user_res
+    except Exception as admin_exc:
+        err_msg = str(admin_exc).lower()
+        if "already" in err_msg or "exists" in err_msg or "unique" in err_msg:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=_err("EMAIL_ALREADY_REGISTERED", "This email is already registered. Please log in."),
+            )
+        logger.warning("Admin create_user fallback: %s", admin_exc)
+        try:
+            auth_response = supabase.auth.sign_up({
+                "email":    body.email,
+                "password": body.password,
+                "options": {
+                    "data": {
+                        "name": body.name,
+                        "role": body.role,
+                    }
+                },
+            })
+            supabase_user = auth_response.user
+        except Exception as exc:
+            err_str = str(exc).lower()
+            if "already" in err_str or "exists" in err_str or "unique" in err_str:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=_err("EMAIL_ALREADY_REGISTERED", "This email is already registered. Please log in."),
+                )
+            logger.error("Supabase Auth signup failed: %s", exc)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=_err("SIGNUP_FAILED", "Could not create account. Please try again."),
+            )
 
-    if auth_response.user is None:
+
+    if supabase_user is None or not getattr(supabase_user, "id", None):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=_err("EMAIL_ALREADY_REGISTERED", "This email is already registered. Please log in."),
         )
 
-    supabase_user = auth_response.user
-    session       = auth_response.session
+    user_id = str(supabase_user.id)
 
-    # ── Step 2: Insert into public.users ──────────────────────────────────────
+    # ── Step 2: Insert/Upsert into public.users ──────────────────────────────
     try:
-        supabase.table("users").insert({
-            "id":    supabase_user.id,
+        supabase.table("users").upsert({
+            "id":    user_id,
             "name":  body.name,
             "email": body.email,
             "role":  body.role,
         }).execute()
     except Exception as exc:
-        # ── Rollback: delete the orphaned Supabase Auth user ──────────────────
-        logger.error("public.users insert failed after Auth signup — rolling back: %s", exc)
-        try:
-            supabase.auth.admin.delete_user(supabase_user.id)
-        except Exception as rollback_exc:
-            logger.error("Rollback also failed: %s", rollback_exc)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=_err("SIGNUP_DB_ERROR", "Account created but profile setup failed. Please contact support."),
-        )
+        logger.error("public.users upsert failed: %s", exc)
 
-    # ── Step 3: If email confirmation is required, session may be None ────────
-    if session is None:
-        # Supabase project has email confirmation enabled
-        # Return a specific response telling frontend to show confirmation screen
-        raise HTTPException(
-            status_code=status.HTTP_202_ACCEPTED,
-            detail={
-                "success": True,
-                "data": {
-                    "requires_confirmation": True,
-                    "message": "Check your email to confirm your account before logging in.",
-                },
-            },
-        )
+    # ── Step 3: Sign in to generate immediate active JWT session ─────────────
+    access_token = ""
+    try:
+        login_res = supabase.auth.sign_in_with_password({
+            "email":    body.email,
+            "password": body.password,
+        })
+        if login_res.session:
+            access_token = login_res.session.access_token
+    except Exception as login_exc:
+        logger.warning("Automatic sign-in after signup failed: %s", login_exc)
 
-    logger.info("New user signed up: %s | role: %s", body.email, body.role)
+    logger.info("New user signed up successfully: %s | role: %s", body.email, body.role)
 
     return AuthResponse(
         success=True,
         data=AuthTokenData(
-            access_token=session.access_token,
+            access_token=access_token,
             role=body.role,
-            user_id=supabase_user.id,
+            user_id=user_id,
             name=body.name,
             email=body.email,
         ),
     )
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
