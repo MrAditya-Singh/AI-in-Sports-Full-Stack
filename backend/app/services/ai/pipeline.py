@@ -124,28 +124,24 @@ def _normalise_exercise(value: Any) -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _get_gym_coach_detector(exercise_key: str) -> Any:
-    """Lazily imports and instantiates the matching ai-gym-coach detector."""
-    from app.services.ai.exercises import ensure_gym_coach_path
-
-    ensure_gym_coach_path()
-
+    """Imports and instantiates the matching detector from app.services.ai.detectors."""
     if exercise_key == "squat":
-        from detectors.squat import SquatDetector  # type: ignore[import-not-found]
+        from app.services.ai.detectors.squat import SquatDetector
         return SquatDetector()
     elif exercise_key == "pushup":
-        from detectors.pushup import PushUpDetector  # type: ignore[import-not-found]
+        from app.services.ai.detectors.pushup import PushUpDetector
         return PushUpDetector()
     elif exercise_key == "biceps_curl":
-        from detectors.biceps_curl import BicepsCurlDetector  # type: ignore[import-not-found]
+        from app.services.ai.detectors.biceps_curl import BicepsCurlDetector
         return BicepsCurlDetector()
     elif exercise_key == "shoulder_press":
-        from detectors.shoulder_press import ShoulderPressDetector  # type: ignore[import-not-found]
+        from app.services.ai.detectors.shoulder_press import ShoulderPressDetector
         return ShoulderPressDetector()
     elif exercise_key == "lunges":
-        from detectors.lunges import LungesDetector  # type: ignore[import-not-found]
+        from app.services.ai.detectors.lunges import LungesDetector
         return LungesDetector()
     else:
-        raise ValueError(f"No gym-coach detector for: {exercise_key}")
+        raise ValueError(f"No detector for: {exercise_key}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────

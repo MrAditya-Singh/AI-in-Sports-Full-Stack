@@ -24,24 +24,14 @@ _path_injected = False
 
 def ensure_gym_coach_path() -> None:
     """
-    Adds the ai-gym-coach 'Main App' directory to sys.path so that
-    `from detectors.squat import SquatDetector` etc. resolve correctly.
-
-    Safe to call multiple times — only injects once.
+    Safely checks and injects ai-gym-coach directory into sys.path if present.
     """
     global _path_injected
-
     if _path_injected:
         return
 
     app_dir = str(_GYM_COACH_APP_DIR)
-
-    if not _GYM_COACH_APP_DIR.is_dir():
-        raise FileNotFoundError(
-            f"ai-gym-coach Main App directory not found at: {app_dir}"
-        )
-
-    if app_dir not in sys.path:
+    if _GYM_COACH_APP_DIR.is_dir() and app_dir not in sys.path:
         sys.path.insert(0, app_dir)
 
     _path_injected = True
