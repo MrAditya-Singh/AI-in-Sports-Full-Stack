@@ -265,7 +265,15 @@ export default function UploadVideoScreen() {
           )}
 
           {/* ── Recent Submissions ── */}
-          <Text style={[styles.sectionTitle, { marginTop: 32 }]}>RECENT SUBMISSIONS & STATUS</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 32, marginBottom: 12 }}>
+            <Text style={[styles.sectionTitle, { marginTop: 0, marginBottom: 0 }]}>
+              RECENT UPLOAD LOGS ({Math.min(5, videos.length)} OF {videos.length})
+            </Text>
+            <Pressable onPress={() => refreshVideos()} style={{ padding: 4 }}>
+              <Text style={{ color: Colors.primary, fontSize: 11, fontWeight: '700' }}>🔄 Refresh</Text>
+            </Pressable>
+          </View>
+
           {videos.length === 0 ? (
             <View style={styles.emptyVideos}>
               <Text style={styles.emptyVideosIcon}>📼</Text>
@@ -275,27 +283,61 @@ export default function UploadVideoScreen() {
               </Text>
             </View>
           ) : (
-            videos.slice(0, 5).map((v) => (
+            videos.slice(0, 5).map((v, idx) => (
               <View key={v.id} style={styles.videoCard}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.videoExercise}>
-                    {v.exercise.toUpperCase().replace('_', ' ')} · {v.sport.toUpperCase()}
-                  </Text>
+                <View style={{ flex: 1, marginRight: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                    <Text style={{ fontSize: 16 }}>
+                      {v.exercise.includes('squat') ? '🏋️' : v.exercise.includes('push') ? '💪' : '🏃'}
+                    </Text>
+                    <Text style={styles.videoExercise}>
+                      {v.exercise.toUpperCase().replace('_', ' ')} · {v.sport.toUpperCase()}
+                    </Text>
+                  </View>
+
                   <Text style={styles.videoDate}>
-                    Uploaded {new Date(v.uploaded_at).toLocaleDateString()} at{' '}
+                    Attempt #{videos.length - idx} · {new Date(v.uploaded_at).toLocaleDateString()} at{' '}
                     {new Date(v.uploaded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </Text>
+
+                  {/* Quick Action Buttons */}
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+                    {v.status === 'completed' && (
+                      <Pressable
+                        onPress={() => router.push({ pathname: '/(athlete)/verification', params: { videoId: v.id } } as never)}
+                        style={styles.actionVerifyBtn}
+                      >
+                        <Text style={styles.actionVerifyBtnText}>🛡️ Submit for Verification</Text>
+                      </Pressable>
+                    )}
+
+                    {v.status === 'completed' && (
+                      <Pressable
+                        onPress={() => router.push('/(athlete)/reports' as never)}
+                        style={styles.actionReportBtn}
+                      >
+                        <Text style={styles.actionReportBtnText}>📊 AI Report</Text>
+                      </Pressable>
+                    )}
+
+                    {v.video_url ? (
+                      <Pressable
+                        onPress={() => {
+                          if (typeof window !== 'undefined') {
+                            window.open(v.video_url, '_blank');
+                          }
+                          showToast('Opening video clip... 🎬');
+                        }}
+                        style={styles.actionSaveBtn}
+                      >
+                        <Text style={styles.actionSaveBtnText}>💾 Save / View</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
                 </View>
-                <View style={{ alignItems: 'flex-end', gap: 6 }}>
+
+                <View style={{ alignItems: 'flex-end', justifyContent: 'flex-start' }}>
                   {renderVideoStatusBadge(v.status)}
-                  {v.status === 'completed' && (
-                    <Pressable
-                      onPress={() => router.push('/(athlete)/reports' as any)}
-                      style={styles.viewReportBtn}
-                    >
-                      <Text style={styles.viewReportBtnText}>View Report →</Text>
-                    </Pressable>
-                  )}
                 </View>
               </View>
             ))
@@ -448,4 +490,34 @@ const styles = StyleSheet.create({
   statusBadgeText: { fontSize: 10, fontWeight: '800' },
   viewReportBtn:     { marginTop: 4 },
   viewReportBtnText: { fontSize: 11, color: Colors.primary, fontWeight: '700' },
+
+  actionVerifyBtn: {
+    backgroundColor: 'rgba(57, 255, 20, 0.12)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(57, 255, 20, 0.4)',
+  },
+  actionVerifyBtnText: { color: '#39FF14', fontSize: 11, fontWeight: '800' },
+
+  actionReportBtn: {
+    backgroundColor: 'rgba(0, 212, 255, 0.12)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 212, 255, 0.4)',
+  },
+  actionReportBtnText: { color: '#00D4FF', fontSize: 11, fontWeight: '800' },
+
+  actionSaveBtn: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  actionSaveBtnText: { color: Colors.textSecondary, fontSize: 11, fontWeight: '700' },
 });

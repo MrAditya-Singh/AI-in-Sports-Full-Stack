@@ -593,6 +593,199 @@ export default function AthleteDashboard() {
             </LinearGradient>
           </Pressable>
 
+          {/* ── Recent 5 Upload Logs & Submissions ── */}
+          <View style={styles.sectionHeaderRow}>
+            <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
+              RECENT UPLOAD LOGS ({Math.min(5, videos.length)})
+            </Text>
+
+            <Pressable
+              onPress={() =>
+                router.push(
+                  '/(athlete)/upload' as any,
+                )
+              }
+            >
+              <Text style={[styles.viewAllText, { color: colors.primary }]}>
+                Upload More →
+              </Text>
+            </Pressable>
+          </View>
+
+          {videos.length === 0 ? (
+            <Pressable
+              style={({ pressed }) => [
+                styles.emptyReportCard,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  shadowColor: colors.cardShadow,
+                  marginBottom: 20,
+                },
+                pressed && styles.pressed,
+              ]}
+              onPress={() =>
+                router.push('/(athlete)/upload' as any)
+              }
+            >
+              <Text style={styles.emptyIcon}>📼</Text>
+              <Text
+                style={[
+                  styles.emptyTitle,
+                  { color: colors.textPrimary },
+                ]}
+              >
+                No uploaded performances yet
+              </Text>
+              <Text
+                style={[
+                  styles.emptySubtitle,
+                  { color: colors.textSecondary },
+                ]}
+              >
+                Upload your video to get AI BlazePose scoring and submit for official verification badge.
+              </Text>
+            </Pressable>
+          ) : (
+            <View style={{ gap: 10, marginBottom: 20 }}>
+              {videos.slice(0, 5).map((v, idx) => (
+                <View
+                  key={v.id}
+                  style={{
+                    backgroundColor: colors.surface,
+                    borderRadius: 16,
+                    padding: 16,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <View style={{ flex: 1, marginRight: 8 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                        <Text style={{ fontSize: 16 }}>
+                          {v.exercise.includes('squat') ? '🏋️' : v.exercise.includes('push') ? '💪' : '🏃'}
+                        </Text>
+                        <Text style={{ fontSize: 14, fontWeight: '800', color: colors.textPrimary }}>
+                          {v.exercise.toUpperCase().replace(/_/g, ' ')} · {v.sport.toUpperCase()}
+                        </Text>
+                      </View>
+                      <Text style={{ fontSize: 11, color: colors.textMuted }}>
+                        Attempt #{videos.length - idx} · {new Date(v.uploaded_at).toLocaleDateString()} at{' '}
+                        {new Date(v.uploaded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </Text>
+                    </View>
+
+                    <View
+                      style={{
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                        borderRadius: 6,
+                        backgroundColor:
+                          v.status === 'completed'
+                            ? `${colors.secondary}15`
+                            : v.status === 'processing'
+                            ? `${colors.primary}15`
+                            : `${colors.warning}15`,
+                        borderWidth: 1,
+                        borderColor:
+                          v.status === 'completed'
+                            ? `${colors.secondary}40`
+                            : v.status === 'processing'
+                            ? `${colors.primary}40`
+                            : `${colors.warning}40`,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 10,
+                          fontWeight: '800',
+                          color:
+                            v.status === 'completed'
+                              ? colors.secondary
+                              : v.status === 'processing'
+                              ? colors.primary
+                              : colors.warning,
+                        }}
+                      >
+                        {v.status === 'completed'
+                          ? 'Report Ready 🎯'
+                          : v.status === 'processing'
+                          ? 'Analyzing 🤖'
+                          : 'Pending ⏳'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Actions for completed logs */}
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
+                    {v.status === 'completed' ? (
+                      <Pressable
+                        onPress={() =>
+                          router.push({
+                            pathname: '/(athlete)/verification',
+                            params: { videoId: v.id },
+                          } as never)
+                        }
+                        style={{
+                          backgroundColor: `${colors.secondary}15`,
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                          borderRadius: 8,
+                          borderWidth: 1,
+                          borderColor: `${colors.secondary}40`,
+                        }}
+                      >
+                        <Text style={{ color: colors.secondary, fontSize: 11, fontWeight: '800' }}>
+                          🛡️ Submit for Verification
+                        </Text>
+                      </Pressable>
+                    ) : null}
+
+                    {v.status === 'completed' ? (
+                      <Pressable
+                        onPress={() => router.push('/(athlete)/reports' as any)}
+                        style={{
+                          backgroundColor: `${colors.primary}15`,
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                          borderRadius: 8,
+                          borderWidth: 1,
+                          borderColor: `${colors.primary}40`,
+                        }}
+                      >
+                        <Text style={{ color: colors.primary, fontSize: 11, fontWeight: '800' }}>
+                          📊 View AI Report
+                        </Text>
+                      </Pressable>
+                    ) : null}
+
+                    {v.video_url ? (
+                      <Pressable
+                        onPress={() => {
+                          if (typeof window !== 'undefined') {
+                            window.open(v.video_url, '_blank');
+                          }
+                        }}
+                        style={{
+                          backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                          borderRadius: 8,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                        }}
+                      >
+                        <Text style={{ color: colors.textSecondary, fontSize: 11, fontWeight: '700' }}>
+                          💾 View / Save
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+
           {/* Verification Centre */}
           <View style={styles.sectionHeaderRow}>
             <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
