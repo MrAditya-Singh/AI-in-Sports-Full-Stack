@@ -268,36 +268,33 @@ export async function submitVerificationRequest(
     const docName = document.name || (mimeType === 'application/pdf' ? 'document.pdf' : 'document.jpg');
 
     if (Platform.OS === 'web') {
-      let webFile: Blob | null = null;
+      let webBlob: Blob | null = null;
       if (typeof File !== 'undefined' && document.file instanceof File) {
-        webFile = document.file;
+        webBlob = document.file;
       } else if (typeof Blob !== 'undefined' && document.file instanceof Blob) {
-        webFile = document.file;
+        webBlob = document.file;
       } else if (document.uri) {
         try {
           const res = await fetch(document.uri);
           if (res.ok) {
-            webFile = await res.blob();
+            webBlob = await res.blob();
           }
         } catch (e) {
           console.warn('Could not fetch document blob on web:', e);
         }
       }
 
-      if (webFile) {
+      if (webBlob) {
         formData.append(
           'documents',
-          webFile,
+          webBlob,
           docName,
         );
       } else {
         formData.append(
           'documents',
-          {
-            uri: document.uri,
-            name: docName,
-            type: mimeType,
-          } as any,
+          new Blob([''], { type: mimeType }),
+          docName,
         );
       }
     } else {

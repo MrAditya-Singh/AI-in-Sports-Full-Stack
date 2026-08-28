@@ -119,7 +119,16 @@ app = FastAPI(
 # Allow web app (Vercel, localhost) and mobile devices to access API seamlessly
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:8081",
+        "http://localhost:19006",
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "https://mobile-app-theta-gules.vercel.app",
+        "https://athletix.vercel.app",
+        "https://athletix.app",
+    ],
+    allow_origin_regex=r"^https?://.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
