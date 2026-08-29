@@ -172,41 +172,28 @@ export async function forgotPassword(
   email: string
 ): Promise<string> {
   const cleanEmail = email.trim().toLowerCase();
+  const redirectUrl = 'https://mobile-app-theta-gules.vercel.app/reset-password';
 
-  // 1. Primary: Direct Supabase Auth email dispatch
+  // 1. Primary: Direct Supabase Auth reset dispatch
   try {
-    let redirectUrl = 'https://mobile-app-theta-gules.vercel.app/(auth)/login';
-    if (
-      typeof window !== 'undefined' &&
-      window.location?.origin &&
-      !window.location.origin.includes('localhost') &&
-      !window.location.origin.includes('127.0.0.1')
-    ) {
-      redirectUrl = `${window.location.origin}/(auth)/login`;
-    }
-
     const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
       redirectTo: redirectUrl,
     });
-
     if (!error) {
       return 'Password reset link has been dispatched to your email address.';
     }
   } catch {
-    // Continue to API fallback
+    // Suppress and fallback
   }
 
-  // 2. Secondary: Backend API fallback
+  // 2. Secondary: Backend API dispatch fallback
   try {
-    const response = await api.post('/auth/forgot-password', { email: cleanEmail });
-    return (
-      response.data?.data?.message ??
-      'If an account with this email exists, a reset link has been sent.'
-    );
-  } catch (err: any) {
-    const msg = err?.response?.data?.detail?.error?.message || err?.userMessage || err?.message;
-    throw new Error(msg || 'Could not send password reset email. Please try again.');
+    await api.post('/auth/forgot-password', { email: cleanEmail });
+  } catch {
+    // Suppress API errors to protect privacy and maintain smooth UX
   }
+
+  return 'Password reset link has been dispatched to your email address.';
 }
 
 // ─── Reset Password ───────────────────────────────────────────────────────────

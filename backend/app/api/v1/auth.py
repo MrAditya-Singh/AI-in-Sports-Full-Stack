@@ -262,8 +262,11 @@ async def forgot_password(body: ForgotPasswordRequest):
     """
     supabase = get_supabase_client()
     try:
-        redirect_url = f"{settings.FRONTEND_URL}/(auth)/login"
-        supabase.auth.reset_password_for_email(body.email, {"redirect_to": redirect_url})
+        redirect_url = f"{settings.FRONTEND_URL}/reset-password"
+        try:
+            supabase.auth.reset_password_for_email(body.email, options={"redirect_to": redirect_url})
+        except Exception:
+            supabase.auth.reset_password_for_email(body.email)
     except Exception as exc:
         logger.warning("Forgot password request error for %s: %s", body.email, exc)
 
