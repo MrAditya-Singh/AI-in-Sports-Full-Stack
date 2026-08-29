@@ -3,9 +3,10 @@
  * app/(athlete)/live.tsx
  *
  * Theme-aware (Light Theme Cream #F7F4EE & Dark Theme #0A0E1A) with vector icons.
+ * Connects to permanent Railway AI Coach service via EXPO_PUBLIC_AI_COACH_URL or backend launch URL.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Linking,
@@ -27,8 +28,6 @@ import ThemeToggle from '../../components/ThemeToggle';
 import { getLiveLaunchUrl, type LiveLaunchData } from '../../services/liveCoachService';
 import { useTheme } from '../../hooks/useTheme';
 
-const ACTIVE_TUNNEL = 'https://recall-emacs-reported-mlb.trycloudflare.com';
-
 export default function LiveCoachScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
@@ -42,9 +41,9 @@ export default function LiveCoachScreen() {
         setLaunchData(data);
       } catch (err: unknown) {
         setLaunchData({
-          launch_url: `${ACTIVE_TUNNEL}/?username=athlete`,
+          launch_url: '',
           username: 'athlete',
-          service_status: 'active',
+          service_status: 'unconfigured',
         });
       } finally {
         setIsLoading(false);
@@ -53,17 +52,45 @@ export default function LiveCoachScreen() {
     void initLaunch();
   }, []);
 
-  // Sanitize URL to ensure it never uses expired tunnel strings
-  const activeUrl = React.useMemo(() => {
-    const raw = launchData?.launch_url;
+  // Compute active AI coach URL from environment variable or backend launch data
+  const { activeUrl, isConfigured } = useMemo(() => {
+    const envCoachUrl = (process.env.EXPO_PUBLIC_AI_COACH_URL || '').trim().replace(/\/$/, '');
     const user = launchData?.username || 'athlete';
-    if (!raw || raw.includes('updating-hey-rough-vote')) {
-      return `${ACTIVE_TUNNEL}/?username=${user}`;
+    const rawBackendUrl = (launchData?.launch_url || '').trim();
+
+    // 1. Direct environment variable configured on Vercel / local env
+    if (envCoachUrl && !envCoachUrl.includes('trycloudflare.com')) {
+      const fullUrl = envCoachUrl.includes('username=')
+        ? envCoachUrl
+        : `${envCoachUrl}/?username=${encodeURIComponent(user)}`;
+      return { activeUrl: fullUrl, isConfigured: true };
     }
-    return raw.includes('username=') ? raw : `${raw}/?username=${user}`;
+
+    // 2. Valid backend launch URL (not containing legacy expired domains)
+    if (
+      rawBackendUrl &&
+      !rawBackendUrl.includes('trycloudflare.com') &&
+      !rawBackendUrl.includes('updating-hey-rough-vote')
+    ) {
+      const fullUrl = rawBackendUrl.includes('username=')
+        ? rawBackendUrl
+        : `${rawBackendUrl}/?username=${encodeURIComponent(user)}`;
+      return { activeUrl: fullUrl, isConfigured: true };
+    }
+
+    // 3. Local development fallback
+    if (__DEV__ && Platform.OS === 'web') {
+      return {
+        activeUrl: `http://localhost:8501/?username=${encodeURIComponent(user)}`,
+        isConfigured: true,
+      };
+    }
+
+    return { activeUrl: '', isConfigured: false };
   }, [launchData]);
 
   const handleOpenExternal = () => {
+    if (!activeUrl) return;
     if (typeof window !== 'undefined') {
       window.open(activeUrl, '_blank', 'noopener,noreferrer');
     } else {
@@ -93,21 +120,23 @@ export default function LiveCoachScreen() {
 
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <ThemeToggle compact />
-              <Pressable
-                onPress={handleOpenExternal}
-                style={[
-                  styles.openExternalBtn,
-                  {
-                    backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#111111',
-                    borderColor: colors.border,
-                  },
-                ]}
-              >
-                <InnovativeIcon name="arrow-up-right" size={14} color={isDark ? colors.textPrimary : '#F7F4EE'} />
-                <Text style={[styles.openExternalText, { color: isDark ? colors.textPrimary : '#F7F4EE' }]}>
-                  Fullscreen
-                </Text>
-              </Pressable>
+              {isConfigured && (
+                <Pressable
+                  onPress={handleOpenExternal}
+                  style={[
+                    styles.openExternalBtn,
+                    {
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#111111',
+                      borderColor: colors.border,
+                    },
+                  ]}
+                >
+                  <InnovativeIcon name="arrow-up-right" size={14} color={isDark ? colors.textPrimary : '#F7F4EE'} />
+                  <Text style={[styles.openExternalText, { color: isDark ? colors.textPrimary : '#F7F4EE' }]}>
+                    Fullscreen
+                  </Text>
+                </Pressable>
+              )}
             </View>
           </View>
 
@@ -124,9 +153,9 @@ export default function LiveCoachScreen() {
                 },
               ]}
             >
-              <View style={[styles.liveDot, { backgroundColor: isDark ? '#39FF14' : '#F7F4EE' }]} />
+              <View style={[styles.liveDot, { backgroundColor: isConfigured ? (isDark ? '#39FF14' : '#F7F4EE') : '#FFAA00' }]} />
               <Text style={[styles.liveBadgeText, { color: isDark ? colors.secondary : '#F7F4EE' }]}>
-                WEBRTC 60 FPS
+                {isConfigured ? 'WEBRTC 60 FPS' : 'SERVICE STANDBY'}
               </Text>
             </View>
           </View>
@@ -136,49 +165,92 @@ export default function LiveCoachScreen() {
         </View>
 
         <ScrollView contentContainerStyle={{ padding: 16 }}>
-          {/* Quick Launcher Card for Mobile Browser Camera Access */}
-          <MinimalCard variant="darkBlock" contentStyle={{ padding: 18, alignItems: 'center' }}>
-            <InnovativeIcon name="video" size={28} color="#F7F4EE" />
-            <Text style={[styles.launcherTitle, { color: '#F7F4EE' }]}>
-              LAUNCH LIVE CAMERA SESSION
-            </Text>
-            <Text style={[styles.launcherSub, { color: 'rgba(247,244,238,0.7)' }]}>
-              Tap below to open full-screen WebRTC camera posture tracking on mobile.
-            </Text>
-
-            <NeomorphicButton
-              title="OPEN CAMERA IN FULLSCREEN ↗"
-              icon={<InnovativeIcon name="zap" size={16} color="#111111" />}
-              onPress={handleOpenExternal}
-              variant="glass"
-              style={{ marginTop: 14, width: '100%' }}
-            />
-          </MinimalCard>
-
-          {/* Embedded Viewport */}
-          <View style={styles.viewportContainer}>
-            {isLoading ? (
-              <View style={styles.loadingBox}>
-                <ActivityIndicator size="large" color={colors.primary} />
-                <Text style={[styles.loadingText, { color: colors.textMuted }]}>
-                  Connecting to AI Gym Coach Engine...
+          {isConfigured ? (
+            <>
+              {/* Quick Launcher Card for Mobile Browser Camera Access */}
+              <MinimalCard variant="darkBlock" contentStyle={{ padding: 18, alignItems: 'center' }}>
+                <InnovativeIcon name="video" size={28} color="#F7F4EE" />
+                <Text style={[styles.launcherTitle, { color: '#F7F4EE' }]}>
+                  LAUNCH LIVE CAMERA SESSION
                 </Text>
+                <Text style={[styles.launcherSub, { color: 'rgba(247,244,238,0.7)' }]}>
+                  Tap below to open full-screen WebRTC camera posture tracking in browser.
+                </Text>
+
+                <NeomorphicButton
+                  title="OPEN CAMERA IN FULLSCREEN ↗"
+                  icon={<InnovativeIcon name="zap" size={16} color="#111111" />}
+                  onPress={handleOpenExternal}
+                  variant="glass"
+                  style={{ marginTop: 14, width: '100%' }}
+                />
+              </MinimalCard>
+
+              {/* Embedded Viewport */}
+              <View style={styles.viewportContainer}>
+                {isLoading ? (
+                  <View style={styles.loadingBox}>
+                    <ActivityIndicator size="large" color={colors.primary} />
+                    <Text style={[styles.loadingText, { color: colors.textMuted }]}>
+                      Connecting to AI Gym Coach Engine...
+                    </Text>
+                  </View>
+                ) : Platform.OS === 'web' ? (
+                  <iframe
+                    src={activeUrl}
+                    style={{
+                      width: '100%',
+                      height: '520px',
+                      border: 'none',
+                      borderRadius: 20,
+                      backgroundColor: isDark ? '#000' : '#FAF8F5',
+                    }}
+                    title="AI Gym Coach Real-Time Streamer"
+                    allow="camera *; microphone *; autoplay *; display-capture *; fullscreen *"
+                  />
+                ) : (
+                  <View style={styles.loadingBox}>
+                    <InnovativeIcon name="video" size={36} color={colors.primary} />
+                    <Text style={[styles.loadingText, { color: colors.textPrimary, textAlign: 'center', marginTop: 8 }]}>
+                      Live AI WebRTC Streaming Active
+                    </Text>
+                    <Text style={[styles.subtitle, { color: colors.textMuted, textAlign: 'center', maxWidth: 280 }]}>
+                      Click full screen launch button above to access camera feed and AI coach on your mobile device.
+                    </Text>
+                  </View>
+                )}
               </View>
-            ) : (
-              <iframe
-                src={activeUrl}
-                style={{
-                  width: '100%',
-                  height: '520px',
-                  border: 'none',
-                  borderRadius: 20,
-                  backgroundColor: isDark ? '#000' : '#FAF8F5',
+            </>
+          ) : (
+            <MinimalCard variant="elevated" contentStyle={{ padding: 22, alignItems: 'center' }}>
+              <InnovativeIcon name="cpu" size={36} color={colors.warning || '#FFAA00'} />
+              <Text style={[styles.launcherTitle, { color: colors.textPrimary, textAlign: 'center', marginTop: 12 }]}>
+                AI Coach Service Configuring
+              </Text>
+              <Text style={[styles.launcherSub, { color: colors.textMuted, textAlign: 'center', marginVertical: 8 }]}>
+                The permanent Railway AI Coach URL is being connected. Set{' '}
+                <Text style={{ fontWeight: '700', color: colors.textPrimary }}>EXPO_PUBLIC_AI_COACH_URL</Text>{' '}
+                on Vercel to your deployed Railway service URL.
+              </Text>
+              <NeomorphicButton
+                title="RELOAD STATUS"
+                icon={<InnovativeIcon name="refresh-cw" size={16} color={isDark ? '#FFFFFF' : '#111111'} />}
+                onPress={async () => {
+                  setIsLoading(true);
+                  try {
+                    const data = await getLiveLaunchUrl();
+                    setLaunchData(data);
+                  } catch {
+                    // ignore
+                  } finally {
+                    setIsLoading(false);
+                  }
                 }}
-                title="AI Gym Coach Real-Time Streamer"
-                allow="camera *; microphone *; autoplay *; display-capture *; fullscreen *"
+                variant="default"
+                style={{ marginTop: 14, width: '100%' }}
               />
-            )}
-          </View>
+            </MinimalCard>
+          )}
         </ScrollView>
       </SafeAreaView>
     </LinearGradient>
