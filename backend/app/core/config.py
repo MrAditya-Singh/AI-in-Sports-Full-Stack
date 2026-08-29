@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str
 
     # Password-reset emails redirect here.
-    FRONTEND_URL: str = "http://localhost:8081"
+    FRONTEND_URL: str = "https://mobile-app-theta-gules.vercel.app"
 
     # AI Real-time Gym Coach Live URL (Cloudflare Quick Tunnel - No Warning Screen)
     LIVE_COACH_URL: str = "https://recall-emacs-reported-mlb.trycloudflare.com"
@@ -38,6 +38,7 @@ class Settings(BaseSettings):
         "http://localhost:19006",
         "http://localhost:3000",
         "http://localhost:5173",
+        "https://mobile-app-theta-gules.vercel.app",
         "https://athletix.vercel.app",
         "https://athletix.app",
         "https://athletix-sports.onrender.com",

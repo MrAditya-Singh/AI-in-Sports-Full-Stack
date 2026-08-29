@@ -166,27 +166,6 @@ async def login(body: LoginRequest):
     """
     supabase = get_supabase_client()
 
-    # ── Hardcoded Admin Credential Check ──────────────────────────────────────
-    if body.email.lower() == "hitsemotional@gmail.com":
-        if body.password == "!@#AJHG!QZ0qae6(Wui)":
-            admin_id = "admin-hitsemotional-id-001"
-            access_token = create_application_token(
-                user_id=admin_id,
-                email="hitsemotional@gmail.com",
-                role="admin",
-            )
-            logger.info("Admin logged in via hardcoded credentials: hitsemotional@gmail.com")
-            return AuthResponse(
-                success=True,
-                data=AuthTokenData(
-                    access_token=access_token,
-                    role="admin",
-                    user_id=admin_id,
-                    name="HitsEmotional Admin",
-                    email="hitsemotional@gmail.com",
-                ),
-            )
-
     try:
         # pyrefly: ignore [bad-argument-type]
         auth_response = supabase.auth.sign_in_with_password({
@@ -214,7 +193,7 @@ async def login(body: LoginRequest):
 
     user    = auth_response.user
     meta    = user.user_metadata or {}
-    role    = "admin" if user.email and user.email.lower() == "hitsemotional@gmail.com" else meta.get("role", "athlete")
+    role    = meta.get("role", "athlete")
     name    = meta.get("name", user.email or "")
 
     # Create secure 30-day token

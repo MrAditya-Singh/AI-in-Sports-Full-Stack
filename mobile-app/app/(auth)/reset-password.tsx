@@ -2,18 +2,10 @@
  * ATHLETIX — Reset Password Screen
  * app/(auth)/reset-password.tsx
  *
- * Features:
- *  - Dynamic Light & Dark Theme support with ThemeToggle
- *  - Secure token verification from magic link
- *  - Password strength validation & confirmation check
- *  - High-contrast inputs & smooth gradient styling
+ * Designed with Neomorphism, minimal stream style, vector icons & full Supabase database password update integration.
  */
 
-import React, {
-  useCallback,
-  useEffect,
-  useState,
-} from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -30,32 +22,34 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
+import MinimalCard from '../../components/MinimalCard';
+import InnovativeIcon from '../../components/InnovativeIcon';
+import NeomorphicButton from '../../components/NeomorphicButton';
 import ThemeToggle from '../../components/ThemeToggle';
-import { resetPassword } from '../../services/authService';
+import { resetPassword, supabase } from '../../services/authService';
 import { useTheme } from '../../hooks/useTheme';
 
-interface UserFacingError {
-  userMessage?: string;
-  message?: string;
-}
-
-function extractRecoveryToken(incomingUrl: string): string | null {
+function extractToken(url: string | null): string | null {
+  if (!url) return null;
   try {
-    const fragment = incomingUrl.split('#')[1];
-    if (!fragment) return null;
-
-    const parameters = new URLSearchParams(fragment);
-    const accessToken = parameters.get('access_token');
-    const linkType = parameters.get('type');
-
-    if (linkType && linkType !== 'recovery') {
-      return null;
+    // Check hash fragment (#access_token=...)
+    const fragment = url.split('#')[1];
+    if (fragment) {
+      const params = new URLSearchParams(fragment);
+      const token = params.get('access_token');
+      if (token) return token;
     }
-
-    return accessToken;
+    // Check query parameters (?access_token=... or ?token=... or ?code=...)
+    const query = url.split('?')[1];
+    if (query) {
+      const params = new URLSearchParams(query);
+      const token = params.get('access_token') || params.get('token') || params.get('code');
+      if (token) return token;
+    }
   } catch {
-    return null;
+    // Ignore parse error
   }
+  return null;
 }
 
 export default function ResetPasswordScreen() {
@@ -65,56 +59,47 @@ export default function ResetPasswordScreen() {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [isReadingLink, setIsReadingLink] = useState(true);
+  const [isVerifying, setIsVerifying] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const processUrl = useCallback((url: string | null): void => {
-    if (!url) {
-      setError('Password reset link is missing or invalid.');
-      setIsReadingLink(false);
-      return;
+  const handleIncomingUrl = useCallback((url: string | null) => {
+    const token = extractToken(url);
+    if (token) {
+      setAccessToken(token);
     }
-
-    const token = extractRecoveryToken(url);
-    if (!token) {
-      setError('Password reset link is invalid or expired. Please request a new link.');
-      setIsReadingLink(false);
-      return;
-    }
-
-    setAccessToken(token);
-    setError('');
-    setIsReadingLink(false);
+    setIsVerifying(false);
   }, []);
 
   useEffect(() => {
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      processUrl(window.location.href);
-      return;
-    }
-
-    void Linking.getInitialURL().then(processUrl);
-
-    const subscription = Linking.addEventListener('url', ({ url }) => {
-      processUrl(url);
+    // Listen to Supabase auth events for PASSWORD_RECOVERY
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY' || session) {
+        setIsVerifying(false);
+      }
     });
 
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      handleIncomingUrl(window.location.href);
+    } else {
+      void Linking.getInitialURL().then(handleIncomingUrl);
+      const sub = Linking.addEventListener('url', ({ url }) => handleIncomingUrl(url));
+      return () => {
+        authListener.subscription.unsubscribe();
+        sub.remove();
+      };
+    }
+
     return () => {
-      subscription.remove();
+      authListener.subscription.unsubscribe();
     };
-  }, [processUrl]);
+  }, [handleIncomingUrl]);
 
   const handlePasswordUpdate = async (): Promise<void> => {
     setError('');
     setSuccess('');
-
-    if (!accessToken) {
-      setError('Password reset link is invalid or expired.');
-      return;
-    }
 
     if (password.length < 8) {
       setError('Password must contain at least 8 characters.');
@@ -122,43 +107,52 @@ export default function ResetPasswordScreen() {
     }
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match.');
+      setError('Passwords do not match. Please verify your passwords.');
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      const message = await resetPassword(accessToken, password);
-      setSuccess(message);
-      setPassword('');
-      setConfirmPassword('');
-
-      if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        window.history.replaceState({}, document.title, '/reset-password');
+      // 1. Direct Supabase Auth password update (updates user password in Supabase Auth & DB)
+      const { error: sbErr } = await supabase.auth.updateUser({ password });
+      if (!sbErr) {
+        setSuccess('Password updated successfully! Redirecting to login...');
+        setPassword('');
+        setConfirmPassword('');
+        setTimeout(() => {
+          router.replace('/(auth)/login' as never);
+        }, 1600);
+        return;
       }
-    } catch (caughtError: unknown) {
-      const authError = caughtError as UserFacingError;
-      setError(
-        authError.userMessage ??
-        authError.message ??
-        'Could not update password. Please request a new link.'
-      );
+
+      // 2. Secondary token-based reset via API
+      if (accessToken) {
+        const msg = await resetPassword(accessToken, password);
+        setSuccess(msg + ' Redirecting to login...');
+        setPassword('');
+        setConfirmPassword('');
+        setTimeout(() => {
+          router.replace('/(auth)/login' as never);
+        }, 1600);
+        return;
+      }
+
+      setError(sbErr.message || 'Could not update password. Link may be expired.');
+    } catch (err: any) {
+      setError(err?.userMessage || err?.message || 'Failed to update password. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  if (isReadingLink) {
+  if (isVerifying) {
     return (
-      <LinearGradient
-        colors={colors.gradientMain}
-        style={styles.gradient}
-      >
+      <LinearGradient colors={colors.gradientMain} style={styles.gradient}>
         <SafeAreaView style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-            Verifying password reset link...
+            Verifying recovery session...
           </Text>
         </SafeAreaView>
       </LinearGradient>
@@ -166,223 +160,149 @@ export default function ResetPasswordScreen() {
   }
 
   return (
-    <LinearGradient
-      colors={colors.gradientMain}
-      style={styles.gradient}
-    >
+    <LinearGradient colors={colors.gradientMain} style={styles.gradient}>
       <SafeAreaView style={styles.safe}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.kav}
         >
-          <ScrollView
-            contentContainerStyle={styles.scroll}
-            keyboardShouldPersistTaps="handled"
-          >
-            {/* Top Bar with Back & ThemeToggle */}
+          <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+            {/* Top Row Nav */}
             <View style={styles.topBar}>
               <Pressable
                 onPress={() => router.replace('/(auth)/login' as never)}
-                style={styles.backBtn}
+                style={[
+                  styles.backBtn,
+                  {
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#FFFFFF',
+                    borderColor: colors.border,
+                  },
+                ]}
               >
-                <Text style={[styles.backText, { color: colors.primary }]}>
-                  ← Back to Login
-                </Text>
+                <InnovativeIcon name="arrow-left" size={14} color={colors.textPrimary} />
+                <Text style={[styles.backText, { color: colors.textPrimary }]}>Back to Login</Text>
               </Pressable>
 
               <ThemeToggle compact />
             </View>
 
-            {/* Header */}
+            {/* Header Logo */}
             <View style={styles.header}>
               <View
                 style={[
-                  styles.logoCircle,
+                  styles.logoBadge,
                   {
-                    backgroundColor: `${colors.primary}20`,
-                    borderColor: `${colors.primary}45`,
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#111111',
+                    borderColor: isDark ? 'rgba(255,255,255,0.15)' : '#111111',
                   },
                 ]}
               >
-                <Text style={styles.logoIcon}>⚡</Text>
+                <InnovativeIcon name="zap" size={24} color={isDark ? colors.primary : '#F7F4EE'} />
               </View>
-              <Text style={[styles.appName, { color: colors.textPrimary }]}>
-                ATHLETIX
-              </Text>
-              <Text style={[styles.title, { color: colors.textPrimary }]}>
-                Set New Password
-              </Text>
-              <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-                Enter your new secure password below to regain access to your athlete portal.
+              <Text style={[styles.logoText, { color: colors.textPrimary }]}>ATHLETIX</Text>
+              <Text style={[styles.logoSub, { color: colors.textSecondary }]}>
+                AI-Powered Biomechanics Account Security
               </Text>
             </View>
 
-            {/* Card */}
-            <View
-              style={[
-                styles.card,
-                {
-                  backgroundColor: colors.surface,
-                  borderColor: colors.border,
-                  shadowColor: colors.cardShadow,
-                },
-              ]}
-            >
-              {error ? (
-                <View
-                  style={[
-                    styles.errorBanner,
-                    {
-                      backgroundColor: `${colors.error}18`,
-                      borderColor: `${colors.error}40`,
-                    },
-                  ]}
-                >
-                  <Text style={[styles.errorText, { color: colors.error }]}>
-                    ⚠ {error}
-                  </Text>
-                </View>
-              ) : null}
+            {/* Main Form Card */}
+            <View style={{ width: '100%', maxWidth: 420 }}>
+              <MinimalCard contentStyle={{ padding: 22 }}>
+                <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Set New Password</Text>
+                <Text style={[styles.cardSub, { color: colors.textSecondary }]}>
+                  Enter and confirm your new secure account password below
+                </Text>
 
-              {success ? (
-                <View
-                  style={[
-                    styles.successBanner,
-                    {
-                      backgroundColor: `${colors.secondary}18`,
-                      borderColor: `${colors.secondary}40`,
-                    },
-                  ]}
-                >
-                  <Text style={[styles.successText, { color: colors.secondary }]}>
-                    ✓ {success}
-                  </Text>
-                  <Pressable
-                    onPress={() => router.replace('/(auth)/login' as never)}
+                {error ? (
+                  <View
                     style={[
-                      styles.successLoginBtn,
-                      {
-                        backgroundColor: `${colors.secondary}25`,
-                        borderColor: `${colors.secondary}50`,
-                      },
+                      styles.errorBox,
+                      { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#EFECE4', borderColor: colors.border },
                     ]}
                   >
-                    <Text style={[styles.successLoginText, { color: colors.secondary }]}>
-                      Go to Sign In →
-                    </Text>
-                  </Pressable>
-                </View>
-              ) : null}
+                    <InnovativeIcon name="alert-circle" size={14} color={colors.textPrimary} />
+                    <Text style={[styles.errorText, { color: colors.textPrimary }]}>{error}</Text>
+                  </View>
+                ) : null}
 
-              {!success ? (
-                <>
-                  {/* New Password */}
-                  <View style={styles.inputGroup}>
-                    <Text style={[styles.label, { color: colors.textSecondary }]}>
-                      NEW PASSWORD
-                    </Text>
+                {success ? (
+                  <View
+                    style={[
+                      styles.successBox,
+                      { backgroundColor: isDark ? 'rgba(57, 255, 20, 0.12)' : '#EFECE4', borderColor: colors.border },
+                    ]}
+                  >
+                    <InnovativeIcon name="shield-check" size={16} color={isDark ? colors.secondary : colors.textPrimary} />
+                    <Text style={[styles.successText, { color: colors.textPrimary }]}>{success}</Text>
+                  </View>
+                ) : null}
+
+                {!success && (
+                  <>
+                    {/* New Password Input */}
+                    <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>NEW PASSWORD</Text>
                     <TextInput
-                      style={[
-                        styles.input,
-                        {
-                          backgroundColor: colors.surfaceElevated,
-                          borderColor: colors.border,
-                          color: colors.textPrimary,
-                        },
-                      ]}
                       value={password}
-                      onChangeText={(val) => {
-                        setPassword(val);
-                        setError('');
-                      }}
+                      onChangeText={(v) => { setPassword(v); setError(''); }}
                       placeholder="At least 8 characters"
                       placeholderTextColor={colors.textMuted}
                       secureTextEntry={!showPassword}
                       autoCapitalize="none"
-                      autoCorrect={false}
-                      editable={!isSubmitting}
-                    />
-                  </View>
-
-                  {/* Confirm Password */}
-                  <View style={styles.inputGroup}>
-                    <Text style={[styles.label, { color: colors.textSecondary }]}>
-                      CONFIRM PASSWORD
-                    </Text>
-                    <TextInput
                       style={[
                         styles.input,
                         {
-                          backgroundColor: colors.surfaceElevated,
+                          backgroundColor: isDark ? 'rgba(0,0,0,0.35)' : '#FFFFFF',
                           borderColor: colors.border,
                           color: colors.textPrimary,
                         },
                       ]}
+                    />
+
+                    {/* Confirm Password Input */}
+                    <Text style={[styles.fieldLabel, { color: colors.textMuted, marginTop: 14 }]}>
+                      CONFIRM PASSWORD
+                    </Text>
+                    <TextInput
                       value={confirmPassword}
-                      onChangeText={(val) => {
-                        setConfirmPassword(val);
-                        setError('');
-                      }}
-                      placeholder="Repeat your password"
+                      onChangeText={(v) => { setConfirmPassword(v); setError(''); }}
+                      placeholder="Re-enter your password"
                       placeholderTextColor={colors.textMuted}
                       secureTextEntry={!showPassword}
                       autoCapitalize="none"
-                      autoCorrect={false}
-                      editable={!isSubmitting}
+                      style={[
+                        styles.input,
+                        {
+                          backgroundColor: isDark ? 'rgba(0,0,0,0.35)' : '#FFFFFF',
+                          borderColor: colors.border,
+                          color: colors.textPrimary,
+                        },
+                      ]}
                     />
-                  </View>
 
-                  {/* Show/Hide checkbox */}
-                  <Pressable
-                    onPress={() => setShowPassword((prev) => !prev)}
-                    style={styles.showPasswordRow}
-                  >
-                    <Text style={[styles.showPasswordText, { color: colors.textSecondary }]}>
-                      {showPassword ? '👁️ Hide password' : '👁️ Show password'}
-                    </Text>
-                  </Pressable>
-
-                  {/* Update button */}
-                  <Pressable
-                    onPress={handlePasswordUpdate}
-                    disabled={isSubmitting}
-                    style={({ pressed }) => [
-                      styles.btn,
-                      isSubmitting && styles.btnDisabled,
-                      pressed && { opacity: 0.85 },
-                    ]}
-                  >
-                    <LinearGradient
-                      colors={
-                        isDark
-                          ? ['#00D4FF', '#0099BB']
-                          : ['#0284C7', '#0369A1']
-                      }
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                      style={styles.btnGrad}
+                    {/* Toggle Show Password */}
+                    <Pressable
+                      onPress={() => setShowPassword((p) => !p)}
+                      style={styles.showPasswordRow}
                     >
-                      {isSubmitting ? (
-                        <ActivityIndicator color="#FFF" size="small" />
-                      ) : (
-                        <Text style={styles.btnText}>UPDATE PASSWORD 🔒</Text>
-                      )}
-                    </LinearGradient>
-                  </Pressable>
-                </>
-              ) : null}
+                      <InnovativeIcon name={showPassword ? "shield-check" : "shield"} size={14} color={colors.textMuted} />
+                      <Text style={[styles.showPasswordText, { color: colors.textSecondary }]}>
+                        {showPassword ? 'Hide password characters' : 'Show password characters'}
+                      </Text>
+                    </Pressable>
 
-              <Pressable
-                onPress={() => router.replace('/(auth)/login' as never)}
-                style={styles.switchRow}
-              >
-                <Text style={[styles.switchText, { color: colors.textSecondary }]}>
-                  Remember password?{' '}
-                  <Text style={[styles.switchLink, { color: colors.primary }]}>
-                    Sign in
-                  </Text>
-                </Text>
-              </Pressable>
+                    {/* Submit CTA */}
+                    <NeomorphicButton
+                      title={isSubmitting ? 'UPDATING PASSWORD...' : 'UPDATE PASSWORD'}
+                      icon={<InnovativeIcon name="check-circle" size={16} color={isDark ? '#FFFFFF' : '#F7F4EE'} />}
+                      onPress={handlePasswordUpdate}
+                      loading={isSubmitting}
+                      variant="primary"
+                      size="lg"
+                      style={{ marginTop: 22 }}
+                    />
+                  </>
+                )}
+              </MinimalCard>
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -395,100 +315,83 @@ const styles = StyleSheet.create({
   gradient: { flex: 1 },
   safe: { flex: 1 },
   kav: { flex: 1 },
-  scroll: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 24,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: { marginTop: 12, fontSize: 13 },
-
+  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  loadingText: { fontSize: 13, fontWeight: '600' },
   topBar: {
+    width: '100%',
+    maxWidth: 420,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
   },
-  backBtn: { alignSelf: 'flex-start' },
-  backText: { fontSize: 13, fontWeight: '700' },
-
+  backBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  backText: { fontSize: 12, fontWeight: '700' },
+  scroll: {
+    flexGrow: 1,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   header: { alignItems: 'center', marginBottom: 24 },
-  logoCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+  logoBadge: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 10,
-    borderWidth: 1.5,
   },
-  logoIcon: { fontSize: 28 },
-  appName: { fontSize: 13, letterSpacing: 4, fontWeight: '900', marginBottom: 6 },
-  title: { fontSize: 24, fontWeight: '900', letterSpacing: 0.5, marginBottom: 8 },
-  subtitle: { fontSize: 13, textAlign: 'center', lineHeight: 19, paddingHorizontal: 12 },
-
-  card: {
-    borderRadius: 22,
-    padding: 22,
-    borderWidth: 1,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 3,
-  },
-
-  errorBanner: {
-    borderRadius: 10,
-    padding: 12,
-    borderWidth: 1,
-    marginBottom: 14,
-  },
-  errorText: { fontSize: 12, fontWeight: '700' },
-
-  successBanner: {
-    borderRadius: 10,
-    padding: 14,
-    borderWidth: 1,
-    marginBottom: 14,
+  logoText: { fontSize: 24, fontWeight: '900', letterSpacing: 2 },
+  logoSub: { fontSize: 12, fontWeight: '500', marginTop: 4 },
+  cardTitle: { fontSize: 20, fontWeight: '900', letterSpacing: -0.3 },
+  cardSub: { fontSize: 13, fontWeight: '500', marginTop: 4, marginBottom: 18 },
+  errorBox: {
+    flexDirection: 'row',
     alignItems: 'center',
-  },
-  successText: { fontSize: 13, fontWeight: '700', lineHeight: 18, textAlign: 'center' },
-  successLoginBtn: {
-    marginTop: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  successLoginText: { fontSize: 12, fontWeight: '800' },
-
-  inputGroup: { marginBottom: 16 },
-  label: { fontSize: 10, letterSpacing: 1.5, fontWeight: '800', marginBottom: 8 },
-  input: {
+    gap: 8,
+    padding: 12,
     borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 13,
-    fontSize: 14,
     borderWidth: 1,
+    marginBottom: 14,
   },
-
+  errorText: { fontSize: 12, fontWeight: '600', flex: 1 },
+  successBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 14,
+  },
+  successText: { fontSize: 13, fontWeight: '700', flex: 1 },
+  fieldLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 0.6, marginBottom: 6 },
+  input: {
+    width: '100%',
+    height: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    fontSize: 14,
+    fontWeight: '600',
+  },
   showPasswordRow: {
-    alignSelf: 'flex-start',
-    marginBottom: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 10,
   },
   showPasswordText: { fontSize: 12, fontWeight: '600' },
-
-  btn: { borderRadius: 14, overflow: 'hidden', marginBottom: 14 },
-  btnDisabled: { opacity: 0.5 },
-  btnGrad: { paddingVertical: 15, alignItems: 'center', justifyContent: 'center' },
-  btnText: { color: '#FFFFFF', fontWeight: '900', fontSize: 13, letterSpacing: 1.5 },
-
-  switchRow: { alignItems: 'center', marginTop: 4 },
-  switchText: { fontSize: 13 },
-  switchLink: { fontWeight: '800' },
 });

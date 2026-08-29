@@ -68,21 +68,6 @@ export async function signup(
 export async function login(
   payload: LoginPayload
 ): Promise<AuthUser> {
-  const cleanEmail = payload.email.trim().toLowerCase();
-
-  // Hardcoded Admin Credential Check
-  if (cleanEmail === 'hitsemotional@gmail.com' && payload.password === '!@#AJHG!QZ0qae6(Wui)') {
-    const adminUser: AuthUser = {
-      userId: 'admin-hitsemotional-id-001',
-      email: 'hitsemotional@gmail.com',
-      name: 'HitsEmotional Admin',
-      role: 'admin',
-      accessToken: 'admin-hardcoded-session-token-hitsemotional-001',
-    };
-    await persistSession(adminUser);
-    return adminUser;
-  }
-
   const response = await api.post(
     '/auth/login',
     payload
@@ -94,7 +79,7 @@ export async function login(
     userId: data.user_id,
     email: data.email,
     name: data.name,
-    role: data.role === 'admin' || cleanEmail === 'hitsemotional@gmail.com' ? 'admin' : data.role,
+    role: data.role,
     accessToken: data.access_token,
   };
 
@@ -190,10 +175,15 @@ export async function forgotPassword(
 
   // 1. Primary: Direct Supabase Auth email dispatch
   try {
-    const redirectUrl =
-      typeof window !== 'undefined' && window.location?.origin
-        ? `${window.location.origin}/(auth)/login`
-        : 'https://mobile-app-theta-gules.vercel.app/(auth)/login';
+    let redirectUrl = 'https://mobile-app-theta-gules.vercel.app/(auth)/login';
+    if (
+      typeof window !== 'undefined' &&
+      window.location?.origin &&
+      !window.location.origin.includes('localhost') &&
+      !window.location.origin.includes('127.0.0.1')
+    ) {
+      redirectUrl = `${window.location.origin}/(auth)/login`;
+    }
 
     const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
       redirectTo: redirectUrl,
