@@ -11,6 +11,7 @@ import {
   Linking,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -21,11 +22,12 @@ import { useRouter } from 'expo-router';
 
 import MinimalCard from '../../components/MinimalCard';
 import InnovativeIcon from '../../components/InnovativeIcon';
+import NeomorphicButton from '../../components/NeomorphicButton';
 import ThemeToggle from '../../components/ThemeToggle';
 import { getLiveLaunchUrl, type LiveLaunchData } from '../../services/liveCoachService';
 import { useTheme } from '../../hooks/useTheme';
 
-const FALLBACK_LIVE_URL = 'https://recall-emacs-reported-mlb.trycloudflare.com';
+const ACTIVE_TUNNEL = 'https://recall-emacs-reported-mlb.trycloudflare.com';
 
 export default function LiveCoachScreen() {
   const router = useRouter();
@@ -40,9 +42,9 @@ export default function LiveCoachScreen() {
         setLaunchData(data);
       } catch (err: unknown) {
         setLaunchData({
-          launch_url: `${FALLBACK_LIVE_URL}/?username=athlete`,
+          launch_url: `${ACTIVE_TUNNEL}/?username=athlete`,
           username: 'athlete',
-          service_status: 'fallback',
+          service_status: 'active',
         });
       } finally {
         setIsLoading(false);
@@ -51,16 +53,23 @@ export default function LiveCoachScreen() {
     void initLaunch();
   }, []);
 
+  // Sanitize URL to ensure it never uses expired tunnel strings
+  const activeUrl = React.useMemo(() => {
+    const raw = launchData?.launch_url;
+    const user = launchData?.username || 'athlete';
+    if (!raw || raw.includes('updating-hey-rough-vote')) {
+      return `${ACTIVE_TUNNEL}/?username=${user}`;
+    }
+    return raw.includes('username=') ? raw : `${raw}/?username=${user}`;
+  }, [launchData]);
+
   const handleOpenExternal = () => {
-    const url = launchData?.launch_url || FALLBACK_LIVE_URL;
     if (typeof window !== 'undefined') {
-      window.open(url, '_blank', 'noopener,noreferrer');
+      window.open(activeUrl, '_blank', 'noopener,noreferrer');
     } else {
-      void Linking.openURL(url);
+      void Linking.openURL(activeUrl);
     }
   };
-
-  const activeUrl = launchData?.launch_url || `${FALLBACK_LIVE_URL}/?username=athlete`;
 
   return (
     <LinearGradient colors={colors.gradientMain} style={styles.gradient}>
@@ -126,30 +135,51 @@ export default function LiveCoachScreen() {
           </Text>
         </View>
 
-        {/* Viewport */}
-        <View style={styles.viewportContainer}>
-          {isLoading ? (
-            <View style={styles.loadingBox}>
-              <ActivityIndicator size="large" color={colors.primary} />
-              <Text style={[styles.loadingText, { color: colors.textMuted }]}>
-                Connecting to AI Gym Coach Engine...
-              </Text>
-            </View>
-          ) : (
-            <iframe
-              src={activeUrl}
-              style={{
-                width: '100%',
-                height: '100%',
-                border: 'none',
-                borderRadius: 20,
-                backgroundColor: isDark ? '#000' : '#FAF8F5',
-              }}
-              title="AI Gym Coach Real-Time Streamer"
-              allow="camera *; microphone *; autoplay *; display-capture *; fullscreen *"
+        <ScrollView contentContainerStyle={{ padding: 16 }}>
+          {/* Quick Launcher Card for Mobile Browser Camera Access */}
+          <MinimalCard variant="darkBlock" contentStyle={{ padding: 18, alignItems: 'center' }}>
+            <InnovativeIcon name="video" size={28} color="#F7F4EE" />
+            <Text style={[styles.launcherTitle, { color: '#F7F4EE' }]}>
+              LAUNCH LIVE CAMERA SESSION
+            </Text>
+            <Text style={[styles.launcherSub, { color: 'rgba(247,244,238,0.7)' }]}>
+              Tap below to open full-screen WebRTC camera posture tracking on mobile.
+            </Text>
+
+            <NeomorphicButton
+              title="OPEN CAMERA IN FULLSCREEN ↗"
+              icon={<InnovativeIcon name="zap" size={16} color="#111111" />}
+              onPress={handleOpenExternal}
+              variant="glass"
+              style={{ marginTop: 14, width: '100%' }}
             />
-          )}
-        </View>
+          </MinimalCard>
+
+          {/* Embedded Viewport */}
+          <View style={styles.viewportContainer}>
+            {isLoading ? (
+              <View style={styles.loadingBox}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={[styles.loadingText, { color: colors.textMuted }]}>
+                  Connecting to AI Gym Coach Engine...
+                </Text>
+              </View>
+            ) : (
+              <iframe
+                src={activeUrl}
+                style={{
+                  width: '100%',
+                  height: '520px',
+                  border: 'none',
+                  borderRadius: 20,
+                  backgroundColor: isDark ? '#000' : '#FAF8F5',
+                }}
+                title="AI Gym Coach Real-Time Streamer"
+                allow="camera *; microphone *; autoplay *; display-capture *; fullscreen *"
+              />
+            )}
+          </View>
+        </ScrollView>
       </SafeAreaView>
     </LinearGradient>
   );
@@ -207,9 +237,11 @@ const styles = StyleSheet.create({
   liveDot: { width: 6, height: 6, borderRadius: 3 },
   liveBadgeText: { fontSize: 9, fontWeight: '900', letterSpacing: 0.5 },
   subtitle: { fontSize: 11, fontWeight: '500', marginTop: 4 },
+  launcherTitle: { fontSize: 15, fontWeight: '900', marginTop: 8, letterSpacing: 0.5 },
+  launcherSub: { fontSize: 12, textAlign: 'center', marginTop: 4 },
   viewportContainer: {
-    flex: 1,
-    margin: 16,
+    height: 520,
+    marginTop: 14,
     borderRadius: 20,
     overflow: 'hidden',
   },

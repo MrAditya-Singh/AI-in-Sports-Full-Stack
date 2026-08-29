@@ -7,6 +7,7 @@ import React from 'react';
 import {
   Alert,
   Animated,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -111,23 +112,27 @@ export default function OfficialDashboard() {
   };
 
   const handleLogout = (): void => {
-    Alert.alert(
-      'Sign out',
-      'Are you sure you want to sign out?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Sign out',
-          style: 'destructive',
-          onPress: () => {
-            void performLogout();
+    if (Platform.OS === 'web') {
+      void performLogout();
+    } else {
+      Alert.alert(
+        'Sign out',
+        'Are you sure you want to sign out?',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
           },
-        },
-      ]
-    );
+          {
+            text: 'Sign out',
+            style: 'destructive',
+            onPress: () => {
+              void performLogout();
+            },
+          },
+        ]
+      );
+    }
   };
 
   const firstName =

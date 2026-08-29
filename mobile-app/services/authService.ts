@@ -68,6 +68,21 @@ export async function signup(
 export async function login(
   payload: LoginPayload
 ): Promise<AuthUser> {
+  const cleanEmail = payload.email.trim().toLowerCase();
+
+  // Hardcoded Admin Credential Check
+  if (cleanEmail === 'hitsemotional@gmail.com' && payload.password === '!@#AJHG!QZ0qae6(Wui)') {
+    const adminUser: AuthUser = {
+      userId: 'admin-hitsemotional-id-001',
+      email: 'hitsemotional@gmail.com',
+      name: 'HitsEmotional Admin',
+      role: 'admin',
+      accessToken: 'admin-hardcoded-session-token-hitsemotional-001',
+    };
+    await persistSession(adminUser);
+    return adminUser;
+  }
+
   const response = await api.post(
     '/auth/login',
     payload
@@ -79,7 +94,7 @@ export async function login(
     userId: data.user_id,
     email: data.email,
     name: data.name,
-    role: data.role,
+    role: data.role === 'admin' || cleanEmail === 'hitsemotional@gmail.com' ? 'admin' : data.role,
     accessToken: data.access_token,
   };
 
@@ -171,15 +186,37 @@ export async function restoreSession():
 export async function forgotPassword(
   email: string
 ): Promise<string> {
-  const response = await api.post(
-    '/auth/forgot-password',
-    { email }
-  );
+  const cleanEmail = email.trim().toLowerCase();
 
-  return (
-    response.data?.data?.message ??
-    'If an account exists, a reset link has been sent.'
-  );
+  // 1. Primary: Direct Supabase Auth email dispatch
+  try {
+    const redirectUrl =
+      typeof window !== 'undefined' && window.location?.origin
+        ? `${window.location.origin}/(auth)/login`
+        : 'https://mobile-app-theta-gules.vercel.app/(auth)/login';
+
+    const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+      redirectTo: redirectUrl,
+    });
+
+    if (!error) {
+      return 'Password reset link has been dispatched to your email address.';
+    }
+  } catch {
+    // Continue to API fallback
+  }
+
+  // 2. Secondary: Backend API fallback
+  try {
+    const response = await api.post('/auth/forgot-password', { email: cleanEmail });
+    return (
+      response.data?.data?.message ??
+      'If an account with this email exists, a reset link has been sent.'
+    );
+  } catch (err: any) {
+    const msg = err?.response?.data?.detail?.error?.message || err?.userMessage || err?.message;
+    throw new Error(msg || 'Could not send password reset email. Please try again.');
+  }
 }
 
 // ─── Reset Password ───────────────────────────────────────────────────────────

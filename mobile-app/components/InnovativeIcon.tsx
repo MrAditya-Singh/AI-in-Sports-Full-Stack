@@ -47,6 +47,7 @@ export type InnovativeIconName =
   | 'sparkles'
   | 'dumbell'
   | 'run'
+  | 'send'
   | 'refresh';
 
 interface InnovativeIconProps {
@@ -131,6 +132,8 @@ export default function InnovativeIcon({
         return <MaterialCommunityIcons name="dumbbell" size={size} color={iconColor} style={style} />;
       case 'run':
         return <MaterialCommunityIcons name="run-fast" size={size} color={iconColor} style={style} />;
+      case 'send':
+        return <Feather name="send" size={size} color={iconColor} style={style} />;
       case 'refresh':
         return <Feather name="refresh-cw" size={size} color={iconColor} style={style} />;
       default:
