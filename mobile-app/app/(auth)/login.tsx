@@ -1,15 +1,6 @@
 /**
- * ATHLETIX — Login Screen
+ * ATHLETIX — Login Screen (Minimalist Dual-Tone Stream)
  * app/(auth)/login.tsx
- *
- * Features:
- *  - Dynamic Light & Dark Theme support
- *  - Glassmorphism card on adaptive gradient background
- *  - Top corner ThemeToggle for instant preview
- *  - Animated entrance (slide up + fade)
- *  - Inline field validation with animated error shake
- *  - Loading state with spinner on the button
- *  - Link to signup screen
  */
 
 import React, { useRef, useState } from 'react';
@@ -18,65 +9,65 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
-  ActivityIndicator,
-  ScrollView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import MinimalCard from '../../components/MinimalCard';
+import InnovativeIcon from '../../components/InnovativeIcon';
+import NeomorphicButton from '../../components/NeomorphicButton';
 import ThemeToggle from '../../components/ThemeToggle';
 import { login } from '../../services/authService';
 import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '../../hooks/useTheme';
 
 export default function LoginScreen() {
-  const router  = useRouter();
+  const router = useRouter();
   const { refresh } = useAuth();
   const { colors, isDark } = useTheme();
 
-  const [email,    setEmail]    = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error,    setError]    = useState('');
-  const [loading,  setLoading]  = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  // Animation refs
-  const cardAnim  = useRef(new Animated.Value(60)).current;
-  const fadeAnim  = useRef(new Animated.Value(0)).current;
+  const cardAnim = useRef(new Animated.Value(40)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
   const shakeAnim = useRef(new Animated.Value(0)).current;
 
   React.useEffect(() => {
     Animated.parallel([
-      Animated.spring(cardAnim, { toValue: 0,  useNativeDriver: true, tension: 60, friction: 8 }),
-      Animated.timing(fadeAnim, { toValue: 1,  duration: 600, useNativeDriver: true }),
+      Animated.spring(cardAnim, { toValue: 0, useNativeDriver: true, tension: 60, friction: 8 }),
+      Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
     ]).start();
   }, [cardAnim, fadeAnim]);
 
   function shake() {
     Animated.sequence([
-      Animated.timing(shakeAnim, { toValue:  10, duration: 60, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 10, duration: 60, useNativeDriver: true }),
       Animated.timing(shakeAnim, { toValue: -10, duration: 60, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue:  8,  duration: 60, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue:  0,  duration: 60, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 8, duration: 60, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 0, duration: 60, useNativeDriver: true }),
     ]).start();
   }
 
   async function handleLogin() {
     setError('');
-    if (!email.trim())    { setError('Please enter your email.');    shake(); return; }
+    if (!email.trim()) { setError('Please enter your email.'); shake(); return; }
     if (!password.trim()) { setError('Please enter your password.'); shake(); return; }
 
     setLoading(true);
     try {
       await login({ email: email.trim().toLowerCase(), password });
-      await refresh();            // re-read AsyncStorage → triggers nav guard
-      // Navigation guard in _layout.tsx handles routing to role dashboard
+      await refresh();
     } catch (err: any) {
-      const msg = err?.userMessage ?? 'Login failed. Please try again.';
+      const msg = err?.userMessage ?? 'Login failed. Please check credentials.';
       setError(msg);
       shake();
     } finally {
@@ -85,169 +76,132 @@ export default function LoginScreen() {
   }
 
   return (
-    <LinearGradient
-      colors={colors.gradientMain}
-      style={styles.gradient}
-    >
+    <LinearGradient colors={colors.gradientMain} style={styles.gradient}>
       <SafeAreaView style={styles.safe}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.kav}
         >
-          {/* Top corner theme toggle */}
           <View style={styles.topRightToggle}>
             <ThemeToggle compact />
           </View>
 
           <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-            {/* ── Header ── */}
+            {/* Logo */}
             <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
-              <Text
+              <View
                 style={[
-                  styles.logoText,
+                  styles.logoBadge,
                   {
-                    color: colors.primary,
-                    textShadowColor: isDark ? colors.primary : 'rgba(2, 132, 199, 0.3)',
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#111111',
+                    borderColor: isDark ? 'rgba(255,255,255,0.15)' : '#111111',
                   },
                 ]}
               >
+                <InnovativeIcon name="zap" size={24} color={isDark ? colors.primary : '#F7F4EE'} />
+              </View>
+              <Text style={[styles.logoText, { color: colors.textPrimary }]}>
                 ATHLETIX
               </Text>
               <Text style={[styles.logoSub, { color: colors.textSecondary }]}>
-                AI-Powered Sports Assessment
+                AI-Powered Sports Biomechanics & Scouting
               </Text>
             </Animated.View>
 
-            {/* ── Card ── */}
+            {/* Minimalist Card */}
             <Animated.View
-              style={[
-                styles.card,
-                {
-                  backgroundColor: colors.surface,
-                  borderColor: isDark ? 'rgba(0, 212, 255, 0.15)' : 'rgba(2, 132, 199, 0.15)',
-                  shadowColor: colors.cardShadow,
-                  transform: [
-                    { translateY: cardAnim },
-                    { translateX: shakeAnim },
-                  ],
-                  opacity: fadeAnim,
-                },
-              ]}
+              style={{
+                transform: [{ translateY: cardAnim }, { translateX: shakeAnim }],
+                opacity: fadeAnim,
+                width: '100%',
+                maxWidth: 420,
+              }}
             >
-              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
-                Welcome back
-              </Text>
-              <Text style={[styles.cardSub, { color: colors.textSecondary }]}>
-                Sign in to continue your athletic journey
-              </Text>
+              <MinimalCard contentStyle={{ padding: 22 }}>
+                <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
+                  Welcome Back
+                </Text>
+                <Text style={[styles.cardSub, { color: colors.textSecondary }]}>
+                  Sign in to your athlete account
+                </Text>
 
-              {/* Email */}
-              <View style={styles.fieldWrap}>
-                <Text style={[styles.label, { color: colors.textMuted }]}>EMAIL</Text>
+                {error ? (
+                  <View
+                    style={[
+                      styles.errorBox,
+                      { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#EFECE4', borderColor: colors.border },
+                    ]}
+                  >
+                    <InnovativeIcon name="alert-circle" size={14} color={colors.textPrimary} />
+                    <Text style={[styles.errorText, { color: colors.textPrimary }]}>{error}</Text>
+                  </View>
+                ) : null}
+
+                {/* Email Field */}
+                <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>
+                  EMAIL ADDRESS
+                </Text>
                 <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : colors.surfaceElevated,
-                      borderColor: colors.border,
-                      color: colors.textPrimary,
-                    },
-                  ]}
-                  placeholder="athlete@example.com"
-                  placeholderTextColor={colors.textMuted}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
                   value={email}
                   onChangeText={setEmail}
-                />
-              </View>
-
-              {/* Password */}
-              <View style={styles.fieldWrap}>
-                <Text style={[styles.label, { color: colors.textMuted }]}>PASSWORD</Text>
-                <TextInput
+                  placeholder="athlete@example.com"
+                  placeholderTextColor={colors.textMuted}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
                   style={[
                     styles.input,
                     {
-                      backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : colors.surfaceElevated,
+                      backgroundColor: isDark ? 'rgba(0,0,0,0.35)' : '#FFFFFF',
                       borderColor: colors.border,
                       color: colors.textPrimary,
                     },
                   ]}
+                />
+
+                {/* Password Field */}
+                <Text style={[styles.fieldLabel, { color: colors.textMuted, marginTop: 14 }]}>
+                  PASSWORD
+                </Text>
+                <TextInput
+                  value={password}
+                  onChangeText={setPassword}
                   placeholder="••••••••"
                   placeholderTextColor={colors.textMuted}
                   secureTextEntry
-                  value={password}
-                  onChangeText={setPassword}
-                />
-              </View>
-
-              {/* Forgot Password */}
-              <Pressable onPress={() => router.push('/(auth)/forgot-password' as any)} style={styles.forgotRow}>
-                <Text style={[styles.forgotText, { color: colors.warning }]}>
-                  Forgot password?
-                </Text>
-              </Pressable>
-
-              {/* Error */}
-              {error ? (
-                <View
                   style={[
-                    styles.errorBanner,
+                    styles.input,
                     {
-                      backgroundColor: `${colors.error}15`,
-                      borderColor: `${colors.error}35`,
+                      backgroundColor: isDark ? 'rgba(0,0,0,0.35)' : '#FFFFFF',
+                      borderColor: colors.border,
+                      color: colors.textPrimary,
                     },
                   ]}
-                >
-                  <Text style={[styles.errorText, { color: colors.error }]}>⚠  {error}</Text>
+                />
+
+                {/* Submit CTA */}
+                <NeomorphicButton
+                  title={loading ? 'SIGNING IN...' : 'SIGN IN'}
+                  icon={<InnovativeIcon name="arrow-right" size={16} color={isDark ? '#FFFFFF' : '#F7F4EE'} />}
+                  onPress={handleLogin}
+                  loading={loading}
+                  variant="primary"
+                  size="lg"
+                  style={{ marginTop: 22 }}
+                />
+
+                {/* Footer Switcher */}
+                <View style={styles.footerRow}>
+                  <Text style={[styles.footerText, { color: colors.textSecondary }]}>
+                    New to Athletix?{' '}
+                  </Text>
+                  <Pressable onPress={() => router.push('/(auth)/signup' as any)}>
+                    <Text style={[styles.linkText, { color: colors.textPrimary }]}>
+                      Create Account
+                    </Text>
+                  </Pressable>
                 </View>
-              ) : null}
-
-              {/* CTA */}
-              <Pressable
-                style={({ pressed }) => [styles.btn, pressed && styles.btnPressed]}
-                onPress={handleLogin}
-                disabled={loading}
-              >
-                <LinearGradient
-                  colors={
-                    isDark
-                      ? ['#00D4FF', '#0099BB']
-                      : ['#0284C7', '#0369A1']
-                  }
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.btnGradient}
-                >
-                  {loading
-                    ? <ActivityIndicator color="#FFF" />
-                    : <Text style={styles.btnText}>SIGN IN</Text>
-                  }
-                </LinearGradient>
-              </Pressable>
-
-              {/* Divider */}
-              <View style={styles.divider}>
-                <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-                <Text style={[styles.dividerText, { color: colors.textMuted }]}>OR</Text>
-                <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-              </View>
-
-              {/* Signup link */}
-              <Pressable onPress={() => router.push('/(auth)/signup')} style={styles.linkRow}>
-                <Text style={[styles.linkText, { color: colors.textSecondary }]}>
-                  New to ATHLETIX?{'  '}
-                  <Text style={[styles.linkHighlight, { color: colors.primary }]}>Create account →</Text>
-                </Text>
-              </Pressable>
+              </MinimalCard>
             </Animated.View>
-
-            {/* Bottom tagline */}
-            <Animated.Text style={[styles.bottomTagline, { opacity: fadeAnim, color: colors.textMuted }]}>
-              Talent is everywhere. Assessment is not.
-            </Animated.Text>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -256,77 +210,85 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  gradient:  { flex: 1 },
-  safe:      { flex: 1 },
-  kav:       { flex: 1 },
-  scroll:    { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 32 },
-
+  gradient: { flex: 1 },
+  safe: { flex: 1 },
+  kav: { flex: 1 },
   topRightToggle: {
     position: 'absolute',
-    top: 16,
-    right: 20,
+    top: 14,
+    right: 18,
     zIndex: 10,
   },
-
-  header:    { alignItems: 'center', marginBottom: 32 },
-  logoText:  {
-    fontSize: 38, fontWeight: '900', letterSpacing: 6,
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 18,
+  scroll: {
+    flexGrow: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 36,
   },
-  logoSub:   { fontSize: 11, letterSpacing: 2.5, marginTop: 6, textTransform: 'uppercase' },
-
-  card: {
-    borderRadius: 24,
-    padding: 28,
+  header: {
+    alignItems: 'center',
+    marginBottom: 26,
+  },
+  logoBadge: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
     borderWidth: 1,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 20,
-    elevation: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
   },
-  cardTitle:  { fontSize: 24, fontWeight: '800', marginBottom: 4 },
-  cardSub:    { fontSize: 13, marginBottom: 24 },
-
-  fieldWrap:  { marginBottom: 16 },
-  label:      { fontSize: 10, letterSpacing: 2, marginBottom: 6, fontWeight: '700' },
-  input: {
-    borderRadius: 12,
-    borderWidth: 1,
-    fontSize: 15,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+  logoText: {
+    fontSize: 28,
+    fontWeight: '900',
+    letterSpacing: 2,
   },
-
-  errorBanner: {
+  logoSub: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 3,
+  },
+  cardTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    letterSpacing: -0.3,
+  },
+  cardSub: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 2,
+    marginBottom: 18,
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 10,
     borderRadius: 10,
     borderWidth: 1,
-    padding: 12,
-    marginBottom: 16,
+    marginBottom: 14,
   },
-  errorText: { fontSize: 13 },
-
-  btn:         { borderRadius: 14, overflow: 'hidden', marginTop: 8 },
-  btnPressed:  { opacity: 0.85 },
-  btnGradient: { paddingVertical: 16, alignItems: 'center', justifyContent: 'center' },
-  btnText:     { color: '#FFFFFF', fontWeight: '900', fontSize: 15, letterSpacing: 3 },
-
-  forgotRow:   { alignSelf: 'flex-end', marginBottom: 8 },
-  forgotText:  { fontSize: 12, fontWeight: '600' },
-
-  divider:     { flexDirection: 'row', alignItems: 'center', marginVertical: 22 },
-  dividerLine: { flex: 1, height: 1 },
-  dividerText: { fontSize: 11, marginHorizontal: 12, letterSpacing: 1 },
-
-  linkRow:        { alignItems: 'center' },
-  linkText:       { fontSize: 14 },
-  linkHighlight:  { fontWeight: '700' },
-
-  bottomTagline: {
-    textAlign: 'center',
-    fontSize: 11,
-    letterSpacing: 1.5,
-    marginTop: 32,
-    fontStyle: 'italic',
+  errorText: { fontSize: 12, fontWeight: '700' },
+  fieldLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    marginBottom: 6,
   },
+  input: {
+    height: 48,
+    borderRadius: 14,
+    borderWidth: 1.2,
+    paddingHorizontal: 14,
+    fontSize: 14,
+  },
+  footerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 20,
+  },
+  footerText: { fontSize: 13, fontWeight: '500' },
+  linkText: { fontSize: 13, fontWeight: '800' },
 });

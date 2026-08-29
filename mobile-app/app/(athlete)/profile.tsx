@@ -32,6 +32,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
+import InnovativeIcon from '../../components/InnovativeIcon';
 import ThemeToggle from '../../components/ThemeToggle';
 import { useProfile } from '../../hooks/useProfile';
 import { useTheme } from '../../hooks/useTheme';
@@ -277,21 +278,22 @@ export default function ProfileScreen() {
           <View style={[styles.topBar, { borderBottomColor: colors.border }]}>
             <Pressable
               onPress={() => router.replace('/(athlete)/dashboard' as never)}
-              style={styles.backBtn}
+              style={[styles.backBtn, { flexDirection: 'row', alignItems: 'center', gap: 6 }]}
             >
-              <Text style={[styles.backText, { color: colors.primary }]}>
-                ← Dashboard
+              <InnovativeIcon name="arrow-left" size={16} color={colors.textPrimary} />
+              <Text style={[styles.backText, { color: colors.textPrimary }]}>
+                Dashboard
               </Text>
             </Pressable>
 
             <Text style={[styles.topTitle, { color: colors.textMuted }]}>
-              ATHLETE ONBOARDING & PROFILE
+              ATHLETE PROFILE
             </Text>
 
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <ThemeToggle compact />
               <Pressable onPress={onRefresh} style={styles.refreshBtn}>
-                <Text style={styles.refreshIcon}>🔄</Text>
+                <InnovativeIcon name="refresh" size={16} color={colors.textPrimary} />
               </Pressable>
             </View>
           </View>

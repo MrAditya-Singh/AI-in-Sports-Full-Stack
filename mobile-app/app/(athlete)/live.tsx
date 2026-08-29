@@ -2,31 +2,34 @@
  * ATHLETIX — Live AI Posture Coach View (Streamlit AI Gym Coach Integration)
  * app/(athlete)/live.tsx
  *
- * Direct integration with Streamlit AI Gym Coach:
- *  - Auto-logins current user with Single Sign-On (SSO)
- *  - WebRTC live camera pose landmark tracking
- *  - Real-time rep counter & AI voice coaching
+ * Theme-aware (Light Theme Cream #F7F4EE & Dark Theme #0A0E1A) with vector icons.
  */
 
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Linking,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Linking, Platform, SafeAreaView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
+import MinimalCard from '../../components/MinimalCard';
+import InnovativeIcon from '../../components/InnovativeIcon';
+import ThemeToggle from '../../components/ThemeToggle';
 import { getLiveLaunchUrl, type LiveLaunchData } from '../../services/liveCoachService';
-import { Colors } from '../../constants/colors';
+import { useTheme } from '../../hooks/useTheme';
 
-const FALLBACK_LIVE_URL = 'https://updating-hey-rough-vote.trycloudflare.com';
+const FALLBACK_LIVE_URL = 'https://recall-emacs-reported-mlb.trycloudflare.com';
 
 export default function LiveCoachScreen() {
   const router = useRouter();
+  const { colors, isDark } = useTheme();
   const [launchData, setLaunchData] = useState<LiveLaunchData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
@@ -60,48 +63,76 @@ export default function LiveCoachScreen() {
   const activeUrl = launchData?.launch_url || `${FALLBACK_LIVE_URL}/?username=athlete`;
 
   return (
-    <LinearGradient
-      colors={['#070B14', '#0A0E1A', '#0D1424']}
-      style={styles.gradient}
-    >
+    <LinearGradient colors={colors.gradientMain} style={styles.gradient}>
       <SafeAreaView style={styles.safe}>
-        {/* ── Header ── */}
-        <View style={styles.header}>
+        {/* Header */}
+        <View style={[styles.header, { borderBottomColor: colors.border }]}>
           <View style={styles.topNavRow}>
             <Pressable
-              onPress={() => router.replace('/(athlete)/upload' as never)}
-              style={styles.backBtn}
+              onPress={() => router.replace('/(athlete)/dashboard' as never)}
+              style={[
+                styles.backBtn,
+                {
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#FFFFFF',
+                  borderColor: colors.border,
+                },
+              ]}
             >
-              <Text style={styles.backText}>← Back to Dashboard</Text>
+              <InnovativeIcon name="arrow-left" size={16} color={colors.textPrimary} />
+              <Text style={[styles.backText, { color: colors.textPrimary }]}>Dashboard</Text>
             </Pressable>
 
-            <Pressable
-              onPress={handleOpenExternal}
-              style={styles.openExternalBtn}
-            >
-              <Text style={styles.openExternalText}>Open Fullscreen ↗</Text>
-            </Pressable>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <ThemeToggle compact />
+              <Pressable
+                onPress={handleOpenExternal}
+                style={[
+                  styles.openExternalBtn,
+                  {
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#111111',
+                    borderColor: colors.border,
+                  },
+                ]}
+              >
+                <InnovativeIcon name="arrow-up-right" size={14} color={isDark ? colors.textPrimary : '#F7F4EE'} />
+                <Text style={[styles.openExternalText, { color: isDark ? colors.textPrimary : '#F7F4EE' }]}>
+                  Fullscreen
+                </Text>
+              </Pressable>
+            </View>
           </View>
 
           <View style={styles.titleRow}>
-            <Text style={styles.title}>AI REAL-TIME POSTURE COACH ⚡</Text>
-            <View style={styles.liveBadge}>
-              <View style={styles.liveDot} />
-              <Text style={styles.liveBadgeText}>LIVE CAMERA WEBRTC</Text>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>
+              Live AI Posture Coach
+            </Text>
+            <View
+              style={[
+                styles.liveBadge,
+                {
+                  backgroundColor: isDark ? 'rgba(57, 255, 20, 0.12)' : '#111111',
+                  borderColor: isDark ? 'rgba(57, 255, 20, 0.3)' : '#111111',
+                },
+              ]}
+            >
+              <View style={[styles.liveDot, { backgroundColor: isDark ? '#39FF14' : '#F7F4EE' }]} />
+              <Text style={[styles.liveBadgeText, { color: isDark ? colors.secondary : '#F7F4EE' }]}>
+                WEBRTC 60 FPS
+              </Text>
             </View>
           </View>
-          <Text style={styles.subtitle}>
-            Single Sign-On: {launchData?.username || 'Authenticated'} · Real-time Pose & Rep Counter
+          <Text style={[styles.subtitle, { color: colors.textMuted }]}>
+            Single Sign-On: {launchData?.username || 'Authenticated'} · Real-time Pose Landmarks & AI Rep Counter
           </Text>
         </View>
 
-        {/* ── Viewport / Stream Container ── */}
+        {/* Viewport */}
         <View style={styles.viewportContainer}>
           {isLoading ? (
             <View style={styles.loadingBox}>
-              <ActivityIndicator size="large" color={Colors.primary} />
-              <Text style={styles.loadingText}>
-                Connecting to AI Gym Coach Real-time Engine...
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={[styles.loadingText, { color: colors.textMuted }]}>
+                Connecting to AI Gym Coach Engine...
               </Text>
             </View>
           ) : (
@@ -112,7 +143,7 @@ export default function LiveCoachScreen() {
                 height: '100%',
                 border: 'none',
                 borderRadius: 20,
-                backgroundColor: '#000',
+                backgroundColor: isDark ? '#000' : '#FAF8F5',
               }}
               title="AI Gym Coach Real-Time Streamer"
               allow="camera *; microphone *; autoplay *; display-capture *; fullscreen *"
@@ -127,75 +158,66 @@ export default function LiveCoachScreen() {
 const styles = StyleSheet.create({
   gradient: { flex: 1 },
   safe: { flex: 1 },
-
   header: {
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
   },
   topNavRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
   },
-  backBtn: { alignSelf: 'flex-start' },
-  backText: { color: Colors.primary, fontSize: 13, fontWeight: '700' },
-  openExternalBtn: {
-    backgroundColor: 'rgba(0, 212, 255, 0.15)',
+  backBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
+    paddingVertical: 7,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(0, 212, 255, 0.4)',
   },
-  openExternalText: { color: '#00D4FF', fontSize: 12, fontWeight: '800' },
+  backText: { fontSize: 12, fontWeight: '700' },
+  openExternalBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  openExternalText: { fontSize: 12, fontWeight: '800' },
   titleRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  title: { fontSize: 16, fontWeight: '900', color: Colors.textPrimary },
+  title: { fontSize: 18, fontWeight: '900', letterSpacing: -0.3 },
   liveBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(57,255,20,0.15)',
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 3,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(57,255,20,0.4)',
   },
-  liveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#39FF14',
-  },
-  liveBadgeText: {
-    color: '#39FF14',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 1,
-  },
-  subtitle: { fontSize: 11, color: Colors.textSecondary, marginTop: 4 },
-
+  liveDot: { width: 6, height: 6, borderRadius: 3 },
+  liveBadgeText: { fontSize: 9, fontWeight: '900', letterSpacing: 0.5 },
+  subtitle: { fontSize: 11, fontWeight: '500', marginTop: 4 },
   viewportContainer: {
     flex: 1,
     margin: 16,
     borderRadius: 20,
     overflow: 'hidden',
-    borderWidth: 1.5,
-    borderColor: 'rgba(0,212,255,0.3)',
-    backgroundColor: '#000',
   },
   loadingBox: {
     flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
-    gap: 12,
+    justifyContent: 'center',
+    gap: 10,
   },
-  loadingText: { color: Colors.textSecondary, fontSize: 13, fontWeight: '700' },
+  loadingText: { fontSize: 12, fontWeight: '600' },
 });

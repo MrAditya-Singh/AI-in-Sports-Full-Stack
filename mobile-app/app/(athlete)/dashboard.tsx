@@ -1,30 +1,32 @@
 /**
- * ATHLETIX — Athlete Dashboard
+ * ATHLETIX — Athlete Dashboard (Minimalist Dual-Tone Stream Architecture)
  * app/(athlete)/dashboard.tsx
  *
- * Connected to:
- * - Live assessment scores
- * - Profile completeness
- * - Video submissions
- * - AI reports
- * - Leaderboard
- * - Official verification requests
- * - Dynamic Light / Dark theme support
+ * Design:
+ * - Pure Minimalist Swiss layout (No Bento Grids, clean vertical flow)
+ * - Exclusive Dual-Tone Light Palette (Ivory Cream #F7F4EE & Jet Obsidian #111111)
+ * - Innovative Vector Icons powered by InnovativeIcon (@expo/vector-icons)
+ * - Tactile, sleek full-width stream cards
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Animated,
+  Alert,
   Pressable,
+  RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
+import MinimalCard from '../../components/MinimalCard';
+import InnovativeIcon from '../../components/InnovativeIcon';
+import NeomorphicButton from '../../components/NeomorphicButton';
 import NotificationBell from '../../components/NotificationBell';
 import ThemeToggle from '../../components/ThemeToggle';
 import { useAuth } from '../../hooks/useAuth';
@@ -33,839 +35,514 @@ import { useAssessments } from '../../hooks/useAssessments';
 import { useVideos } from '../../hooks/useVideos';
 import { useTheme } from '../../hooks/useTheme';
 
-interface StatCardProps {
-  value: string;
-  label: string;
-  accent: string;
-  surfaceColor: string;
-  labelColor: string;
-}
-
-function StatCard({
-  value,
-  label,
-  accent,
-  surfaceColor,
-  labelColor,
-}: StatCardProps) {
-  return (
-    <View
-      style={[
-        styles.statCard,
-        {
-          backgroundColor: surfaceColor,
-          borderColor: `${accent}35`,
-        },
-      ]}
-    >
-      <Text
-        style={[
-          styles.statValue,
-          { color: accent },
-        ]}
-      >
-        {value}
-      </Text>
-
-      <Text style={[styles.statLabel, { color: labelColor }]}>{label}</Text>
-    </View>
-  );
-}
-
 export default function AthleteDashboard() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
 
   const { name, logout } = useAuth();
-  const { profile, completenessPercent } = useProfile();
-  const { assessments, latestAssessment } = useAssessments();
-  const { videos } = useVideos();
+  const { profile, completenessPercent, reloadProfile } = useProfile();
+  const { assessments, latestAssessment, refreshAssessments } = useAssessments();
+  const { videos, refreshVideos, removeVideo } = useVideos();
 
+  const [refreshing, setRefreshing] = React.useState(false);
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
 
   React.useEffect(() => {
     Animated.timing(fadeAnim, {
       toValue: 1,
-      duration: 600,
+      duration: 500,
       useNativeDriver: true,
     }).start();
   }, [fadeAnim]);
 
-  const firstName =
-    (profile?.name || name)?.split(' ')[0] ?? 'Athlete';
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    await Promise.allSettled([
+      reloadProfile?.(),
+      refreshAssessments?.(),
+      refreshVideos?.(),
+    ]);
+    setRefreshing(false);
+  }, [reloadProfile, refreshAssessments, refreshVideos]);
 
-  const bestScore =
-    assessments.length > 0
-      ? Math.round(
-          Math.max(
-            ...assessments.map(
-              (assessment) => assessment.score || 0,
-            ),
-          ),
-        )
-      : null;
+  const handleRemoveAttempt = React.useCallback((videoId: string) => {
+    Alert.alert(
+      'Remove Attempt',
+      'Are you sure you want to remove this attempt from your logs?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            await removeVideo(videoId);
+            await refreshVideos();
+          },
+        },
+      ],
+    );
+  }, [removeVideo, refreshVideos]);
+
+  const firstName = useMemo(() => {
+    return (profile?.name || name)?.split(' ')[0] ?? 'Athlete';
+  }, [profile?.name, name]);
+
+  const bestScore = useMemo(() => {
+    if (assessments.length === 0) return null;
+    return Math.round(
+      Math.max(...assessments.map((a) => a.score || 0)),
+    );
+  }, [assessments]);
+
+  const recentLogs = useMemo(() => {
+    return (videos || []).slice(0, 5);
+  }, [videos]);
 
   return (
-    <LinearGradient
-      colors={colors.gradientMain}
-      style={styles.gradient}
-    >
+    <LinearGradient colors={colors.gradientMain} style={styles.gradient}>
       <SafeAreaView style={styles.safe}>
         <Animated.ScrollView
           style={{ opacity: fadeAnim }}
           contentContainerStyle={styles.scroll}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+            />
+          }
         >
-          {/* Header */}
-          <View style={styles.header}>
-            <View>
-              <Text style={[styles.greeting, { color: colors.textSecondary }]}>
-                Welcome back,
+          {/* ── Top Header ── */}
+          <View style={styles.headerRow}>
+            <View style={styles.userInfo}>
+              <View style={styles.tagRow}>
+                <InnovativeIcon name="sparkles" size={14} color={colors.textSecondary} />
+                <Text style={[styles.welcomeLabel, { color: colors.textSecondary }]}>
+                  ATHLETIX OS
+                </Text>
+              </View>
+              <Text style={[styles.userName, { color: colors.textPrimary }]}>
+                {firstName}
               </Text>
-
-              <Text style={[styles.name, { color: colors.textPrimary }]}>
-                {firstName} 👋
-              </Text>
-
               <View
                 style={[
-                  styles.roleBadge,
+                  styles.verifiedBadge,
                   {
-                    backgroundColor: `${colors.secondary}20`,
-                    borderColor: `${colors.secondary}50`,
+                    backgroundColor: isDark ? 'rgba(57, 255, 20, 0.12)' : '#111111',
+                    borderColor: isDark ? 'rgba(57, 255, 20, 0.35)' : '#111111',
                   },
                 ]}
               >
+                <InnovativeIcon
+                  name="shield-check"
+                  size={12}
+                  color={isDark ? colors.secondary : '#F7F4EE'}
+                />
                 <Text
                   style={[
-                    styles.roleBadgeText,
-                    { color: colors.secondary },
+                    styles.verifiedBadgeText,
+                    { color: isDark ? colors.secondary : '#F7F4EE' },
                   ]}
                 >
-                  🏃 ATHLETE
+                  VERIFIED ATHLETE · LEVEL 2
                 </Text>
               </View>
             </View>
 
-            <View style={styles.headerActions}>
+            <View style={styles.headerControls}>
               <ThemeToggle compact />
               <NotificationBell routeTarget="/(athlete)/notifications" />
-
-              <View style={styles.accountActions}>
-                <Pressable
-                  onPress={() =>
-                    router.push(
-                      '/(athlete)/profile' as any,
-                    )
-                  }
-                  style={[
-                    styles.profileBtn,
-                    {
-                      backgroundColor: `${colors.primary}20`,
-                      borderColor: `${colors.primary}50`,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.profileBtnText,
-                      { color: colors.primary },
-                    ]}
-                  >
-                    ⚙️ Profile
-                  </Text>
-                </Pressable>
-
-                <Pressable
-                  onPress={() => void logout()}
-                  style={[
-                    styles.logoutBtn,
-                    {
-                      borderColor: colors.border,
-                      backgroundColor: isDark ? 'transparent' : colors.surfaceElevated,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.logoutText,
-                      { color: colors.textMuted },
-                    ]}
-                  >
-                    Sign out
-                  </Text>
-                </Pressable>
-              </View>
+              <Pressable
+                onPress={() => router.push('/(athlete)/profile' as any)}
+                style={({ pressed }) => [
+                  styles.iconButton,
+                  {
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#FFFFFF',
+                    borderColor: colors.border,
+                  },
+                  pressed && { opacity: 0.8 },
+                ]}
+              >
+                <InnovativeIcon name="settings" size={17} color={colors.textPrimary} />
+              </Pressable>
+              <Pressable
+                onPress={() => void logout()}
+                style={({ pressed }) => [
+                  styles.signOutBtn,
+                  {
+                    backgroundColor: isDark ? 'transparent' : '#FFFFFF',
+                    borderColor: colors.border,
+                  },
+                  pressed && { opacity: 0.8 },
+                ]}
+              >
+                <InnovativeIcon name="logout" size={14} color={colors.textMuted} />
+              </Pressable>
             </View>
           </View>
 
-          {/* Profile completeness */}
-          <Pressable
-            style={({ pressed }) => [
-              styles.profileCard,
-              {
-                backgroundColor: colors.surface,
-                borderColor: `${colors.primary}30`,
-                shadowColor: colors.cardShadow,
-              },
-              pressed && styles.pressed,
-            ]}
-            onPress={() =>
-              router.push('/(athlete)/profile' as any)
-            }
+          {/* ── Hero Feature Card (Solid Dark Architectural Block) ── */}
+          <MinimalCard
+            variant={isDark ? 'elevated' : 'darkBlock'}
+            onPress={() => router.push('/(athlete)/live' as any)}
+            contentStyle={{ padding: 22 }}
           >
-            <View style={styles.profileCardRow}>
-              <View style={{ flex: 1 }}>
+            <View style={styles.heroHeaderRow}>
+              <View style={styles.liveIndicator}>
+                <View style={[styles.pulseDot, { backgroundColor: isDark ? '#39FF14' : '#F7F4EE' }]} />
                 <Text
                   style={[
-                    styles.profileCardTitle,
-                    { color: colors.textPrimary },
+                    styles.liveTagText,
+                    { color: isDark ? colors.secondary : '#F7F4EE' },
                   ]}
                 >
-                  Profile Completion:{' '}
-                  <Text style={{ color: colors.primary }}>
-                    {completenessPercent}%
-                  </Text>
-                </Text>
-
-                <Text
-                  style={[
-                    styles.profileCardSub,
-                    { color: colors.textSecondary },
-                  ]}
-                >
-                  {completenessPercent < 100
-                    ? 'Complete your athletic specs and bio to get scouted by officials.'
-                    : 'Your athlete profile is fully set up and scout ready!'}
+                  REALTIME WEBRTC 60 FPS
                 </Text>
               </View>
+              <InnovativeIcon
+                name="arrow-up-right"
+                size={18}
+                color={isDark ? colors.primary : '#F7F4EE'}
+              />
+            </View>
 
-              <Text style={[styles.arrowIcon, { color: colors.primary }]}>→</Text>
+            <Text style={[styles.heroMainTitle, { color: isDark ? colors.textPrimary : '#F7F4EE' }]}>
+              Live AI Performance Coach
+            </Text>
+            <Text style={[styles.heroMainSub, { color: isDark ? colors.textMuted : 'rgba(247, 244, 238, 0.7)' }]}>
+              Full-body pose estimation, automatic rep cadence counting, and live form correction.
+            </Text>
+
+            <View style={styles.heroFooter}>
+              <View style={styles.heroStatItem}>
+                <InnovativeIcon name="cpu" size={14} color={isDark ? colors.primary : '#F7F4EE'} />
+                <Text style={[styles.heroStatText, { color: isDark ? colors.textSecondary : '#F7F4EE' }]}>
+                  BlazePose 33-Keypoint
+                </Text>
+              </View>
+              <View style={styles.heroStatItem}>
+                <InnovativeIcon name="activity" size={14} color={isDark ? colors.primary : '#F7F4EE'} />
+                <Text style={[styles.heroStatText, { color: isDark ? colors.textSecondary : '#F7F4EE' }]}>
+                  Zero Latency
+                </Text>
+              </View>
+            </View>
+          </MinimalCard>
+
+          {/* ── Metric Performance Stream (Horizontal / Vertical flow, No Bento) ── */}
+          <View style={styles.metricsStreamRow}>
+            {/* Metric 1: Best AI Score */}
+            <MinimalCard
+              style={{ flex: 1, marginRight: 8 }}
+              contentStyle={{ padding: 16 }}
+              onPress={() => router.push('/(athlete)/reports' as any)}
+            >
+              <View style={styles.metricCardHeader}>
+                <Text style={[styles.metricLabel, { color: colors.textMuted }]}>
+                  BEST FORM SCORE
+                </Text>
+                <InnovativeIcon name="target" size={16} color={colors.primary} />
+              </View>
+              <Text style={[styles.metricBigVal, { color: colors.textPrimary }]}>
+                {bestScore !== null ? `${bestScore}` : '—'}
+              </Text>
+              <Text style={[styles.metricSub, { color: colors.textSecondary }]}>
+                {bestScore ? 'Top Form Quality' : 'No logs recorded'}
+              </Text>
+            </MinimalCard>
+
+            {/* Metric 2: AI Reports */}
+            <MinimalCard
+              style={{ flex: 1, marginLeft: 8 }}
+              contentStyle={{ padding: 16 }}
+              onPress={() => router.push('/(athlete)/reports' as any)}
+            >
+              <View style={styles.metricCardHeader}>
+                <Text style={[styles.metricLabel, { color: colors.textMuted }]}>
+                  AI ASSESSMENTS
+                </Text>
+                <InnovativeIcon name="bar-chart" size={16} color={colors.primary} />
+              </View>
+              <Text style={[styles.metricBigVal, { color: colors.textPrimary }]}>
+                {assessments.length}
+              </Text>
+              <Text style={[styles.metricSub, { color: colors.textSecondary }]}>
+                {latestAssessment ? 'Report Available' : 'Upload to generate'}
+              </Text>
+            </MinimalCard>
+          </View>
+
+          {/* ── Profile Readiness Bar ── */}
+          <MinimalCard
+            onPress={() => router.push('/(athlete)/profile' as any)}
+            contentStyle={{ padding: 18 }}
+          >
+            <View style={styles.profileRow}>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <InnovativeIcon name="user" size={14} color={colors.primary} />
+                  <Text style={[styles.profileProgressTitle, { color: colors.textPrimary }]}>
+                    Scout Profile Readiness · {completenessPercent}%
+                  </Text>
+                </View>
+                <Text style={[styles.profileProgressSub, { color: colors.textSecondary }]}>
+                  {completenessPercent < 100
+                    ? 'Complete athlete bio and biometric metrics to get verified.'
+                    : 'Profile is fully optimized for scout evaluation.'}
+                </Text>
+              </View>
+              <InnovativeIcon name="arrow-right" size={16} color={colors.textPrimary} />
             </View>
 
             <View
               style={[
-                styles.progressBarTrack,
-                { backgroundColor: colors.border },
+                styles.track,
+                { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#EFECE4' },
               ]}
             >
               <View
                 style={[
-                  styles.progressBarFill,
+                  styles.fill,
                   {
                     backgroundColor: colors.primary,
-                    width: `${Math.min(
-                      100,
-                      Math.max(0, completenessPercent),
-                    )}%`,
+                    width: `${Math.min(100, Math.max(8, completenessPercent))}%`,
                   },
                 ]}
               />
             </View>
-          </Pressable>
+          </MinimalCard>
 
-          {/* Stats */}
-          <View style={styles.statsRow}>
-            <StatCard
-              value={
-                bestScore !== null
-                  ? String(bestScore)
-                  : '—'
-              }
-              label="Best AI Score"
-              accent={colors.secondary}
-              surfaceColor={colors.surface}
-              labelColor={colors.textMuted}
-            />
+          {/* ── Primary Action Stream ── */}
+          <Text style={[styles.streamSectionHeader, { color: colors.textMuted }]}>
+            ATHLETIC ACTIONS
+          </Text>
 
-            <StatCard
-              value={String(assessments.length)}
-              label="AI Reports"
-              accent={colors.primary}
-              surfaceColor={colors.surface}
-              labelColor={colors.textMuted}
-            />
-
-            <StatCard
-              value={String(videos.length)}
-              label="Submissions"
-              accent={colors.warning}
-              surfaceColor={colors.surface}
-              labelColor={colors.textMuted}
-            />
-          </View>
-
-          {/* Action CTAs */}
-          <View style={{ gap: 12, marginBottom: 20 }}>
-            {/* Live Performance Coach Hero */}
-            <Pressable
-              style={({ pressed }) => [
-                styles.uploadCta,
-                pressed && styles.pressed,
-              ]}
-              onPress={() =>
-                router.push('/(athlete)/live' as any)
-              }
-            >
-              <LinearGradient
-                colors={
-                  isDark
-                    ? ['#059669', '#10B981']
-                    : ['#047857', '#059669']
-                }
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.uploadCtaGrad}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                  <Text style={styles.uploadCtaText}>
-                    ⚡ Live AI Performance Coach
-                  </Text>
-                  <View style={{ backgroundColor: 'rgba(255,255,255,0.25)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
-                    <Text style={{ color: '#FFF', fontSize: 9, fontWeight: '900' }}>LIVE WEBRTC</Text>
-                  </View>
-                </View>
-
-                <Text style={styles.uploadCtaSub}>
-                  Real-time camera pose tracking, rep counting & instant coaching
-                </Text>
-              </LinearGradient>
-            </Pressable>
-
-            {/* Video Upload CTA */}
-            <Pressable
-              style={({ pressed }) => [
-                styles.uploadCta,
-                pressed && styles.pressed,
-              ]}
-              onPress={() =>
-                router.push('/(athlete)/upload' as any)
-              }
-            >
-              <LinearGradient
-                colors={
-                  isDark
-                    ? ['#00D4FF', '#0099FF']
-                    : ['#0284C7', '#0369A1']
-                }
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.uploadCtaGrad}
-              >
-                <Text style={styles.uploadCtaText}>
-                  🎬 Upload Video for AI Scoring
-                </Text>
-
-                <Text style={styles.uploadCtaSub}>
-                  MediaPipe BlazePose 33-Keypoint Form and Rep Assessment
-                </Text>
-              </LinearGradient>
-            </Pressable>
-          </View>
-
-          {/* Latest AI report */}
-          <View style={styles.sectionHeaderRow}>
-            <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
-              LATEST AI PERFORMANCE REPORT
-            </Text>
-
-            {assessments.length > 0 ? (
-              <Pressable
-                onPress={() =>
-                  router.push(
-                    '/(athlete)/reports' as any,
-                  )
-                }
-              >
-                <Text style={[styles.viewAllText, { color: colors.primary }]}>
-                  View All ({assessments.length}) →
-                </Text>
-              </Pressable>
-            ) : null}
-          </View>
-
-          {latestAssessment ? (
-            <Pressable
-              style={({ pressed }) => [
-                styles.latestReportCard,
-                {
-                  backgroundColor: colors.surface,
-                  borderColor: colors.border,
-                  shadowColor: colors.cardShadow,
-                },
-                pressed && styles.pressed,
-              ]}
-              onPress={() =>
-                router.push('/(athlete)/reports' as any)
-              }
-            >
-              <View style={styles.reportHeaderRow}>
-                <View
-                  style={[
-                    styles.reportScoreCircle,
-                    {
-                      borderColor: colors.secondary,
-                      backgroundColor: `${colors.secondary}15`,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.reportScoreVal,
-                      { color: colors.secondary },
-                    ]}
-                  >
-                    {Math.round(latestAssessment.score)}
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.reportScoreLabel,
-                      { color: colors.secondary },
-                    ]}
-                  >
-                    AI SCORE
-                  </Text>
-                </View>
-
-                <View style={styles.reportInformation}>
-                  <Text
-                    style={[
-                      styles.reportExerciseName,
-                      { color: colors.textPrimary },
-                    ]}
-                  >
-                    {(
-                      latestAssessment.videos?.exercise ||
-                      'Exercise'
-                    )
-                      .toUpperCase()
-                      .replace(/_/g, ' ')}
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.reportSportBadge,
-                      { color: colors.primary },
-                    ]}
-                  >
-                    {(
-                      latestAssessment.videos?.sport ||
-                      'Sport'
-                    ).toUpperCase()}
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.reportDate,
-                      { color: colors.textMuted },
-                    ]}
-                  >
-                    {new Date(
-                      latestAssessment.created_at,
-                    ).toLocaleDateString()}
-                  </Text>
-                </View>
-
-                <Text style={[styles.arrowIcon, { color: colors.primary }]}>→</Text>
-              </View>
-
-              {latestAssessment.strengths?.[0] ? (
-                <View
-                  style={[
-                    styles.snippetRow,
-                    { borderTopColor: colors.border },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.snippetGreen,
-                      { color: colors.secondary },
-                    ]}
-                  >
-                    🟢 {latestAssessment.strengths[0]}
-                  </Text>
-                </View>
-              ) : null}
-            </Pressable>
-          ) : (
-            <Pressable
-              style={({ pressed }) => [
-                styles.emptyCard,
-                {
-                  backgroundColor: colors.surface,
-                  borderColor: colors.border,
-                },
-                pressed && styles.pressed,
-              ]}
-              onPress={() =>
-                router.push('/(athlete)/upload' as any)
-              }
-            >
-              <Text style={styles.emptyIcon}>🎯</Text>
-
-              <Text
-                style={[
-                  styles.emptyTitle,
-                  { color: colors.textPrimary },
-                ]}
-              >
-                No AI assessments yet
-              </Text>
-
-              <Text
-                style={[
-                  styles.emptySubtitle,
-                  { color: colors.textSecondary },
-                ]}
-              >
-                Tap here to upload your first exercise video and get scored by BlazePose AI!
-              </Text>
-            </Pressable>
-          )}
-
-          {/* Leaderboard */}
-          <View style={styles.sectionHeaderRow}>
-            <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
-              TALENT LEADERBOARD
-            </Text>
-
-            <Pressable
-              onPress={() =>
-                router.push(
-                  '/(athlete)/leaderboard' as any,
-                )
-              }
-            >
-              <Text style={[styles.viewAllText, { color: colors.primary }]}>
-                Open Leaderboard →
-              </Text>
-            </Pressable>
-          </View>
-
-          <Pressable
-            style={({ pressed }) => [
-              styles.leaderboardPromoCard,
-              {
-                backgroundColor: colors.surface,
-                borderColor: `${colors.gold}40`,
-                shadowColor: colors.cardShadow,
-              },
-              pressed && styles.pressed,
-            ]}
-            onPress={() =>
-              router.push(
-                '/(athlete)/leaderboard' as any,
-              )
-            }
+          <MinimalCard
+            onPress={() => router.push('/(athlete)/upload' as any)}
+            contentStyle={{ padding: 18 }}
           >
-            <LinearGradient
-              colors={
-                isDark
-                  ? ['rgba(255,215,0,0.12)', 'rgba(255,215,0,0.02)']
-                  : ['rgba(217,119,6,0.12)', 'rgba(217,119,6,0.02)']
-              }
-              style={styles.leaderboardPromoGrad}
-            >
-              <Text style={styles.trophyIcon}>🏆</Text>
-
+            <View style={styles.actionCardInner}>
+              <View
+                style={[
+                  styles.actionIconPill,
+                  { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#EFECE4' },
+                ]}
+              >
+                <InnovativeIcon name="video" size={20} color={colors.textPrimary} />
+              </View>
               <View style={{ flex: 1 }}>
-                <Text
-                  style={[
-                    styles.leaderboardPromoTitle,
-                    { color: colors.gold },
-                  ]}
-                >
+                <Text style={[styles.actionHeading, { color: colors.textPrimary }]}>
+                  Upload Attempt for AI Scoring
+                </Text>
+                <Text style={[styles.actionDescription, { color: colors.textSecondary }]}>
+                  Submit video for MediaPipe biomechanics and rep validation.
+                </Text>
+              </View>
+              <InnovativeIcon name="arrow-right" size={16} color={colors.textMuted} />
+            </View>
+          </MinimalCard>
+
+          <MinimalCard
+            onPress={() => router.push('/(athlete)/verification' as any)}
+            contentStyle={{ padding: 18 }}
+          >
+            <View style={styles.actionCardInner}>
+              <View
+                style={[
+                  styles.actionIconPill,
+                  { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#EFECE4' },
+                ]}
+              >
+                <InnovativeIcon name="shield-check" size={20} color={colors.textPrimary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.actionHeading, { color: colors.textPrimary }]}>
+                  Official Performance Verification
+                </Text>
+                <Text style={[styles.actionDescription, { color: colors.textSecondary }]}>
+                  Submit attempts with official certificates for trusted badges.
+                </Text>
+              </View>
+              <InnovativeIcon name="arrow-right" size={16} color={colors.textMuted} />
+            </View>
+          </MinimalCard>
+
+          <MinimalCard
+            onPress={() => router.push('/(athlete)/leaderboard' as any)}
+            contentStyle={{ padding: 18 }}
+          >
+            <View style={styles.actionCardInner}>
+              <View
+                style={[
+                  styles.actionIconPill,
+                  { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#EFECE4' },
+                ]}
+              >
+                <InnovativeIcon name="trophy" size={20} color={colors.textPrimary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.actionHeading, { color: colors.textPrimary }]}>
                   National Talent Leaderboard
                 </Text>
-
-                <Text
-                  style={[
-                    styles.leaderboardPromoSub,
-                    { color: colors.textSecondary },
-                  ]}
-                >
-                  Compare your AI score with athletes across India and get scouted by officials.
+                <Text style={[styles.actionDescription, { color: colors.textSecondary }]}>
+                  Explore nationwide athlete rankings, verified scores, and top performers.
                 </Text>
               </View>
+              <InnovativeIcon name="arrow-right" size={16} color={colors.textMuted} />
+            </View>
+          </MinimalCard>
 
-              <Text style={[styles.arrowGold, { color: colors.gold }]}>→</Text>
-            </LinearGradient>
-          </Pressable>
-
-          {/* ── Recent 5 Upload Logs & Submissions ── */}
-          <View style={styles.sectionHeaderRow}>
-            <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
-              RECENT UPLOAD LOGS ({Math.min(5, videos.length)})
+          {/* ── Recent 5 Upload Logs Stream ── */}
+          <View style={styles.recentSectionHeaderRow}>
+            <Text style={[styles.streamSectionHeader, { color: colors.textMuted }]}>
+              RECENT ATTEMPTS ({recentLogs.length})
             </Text>
-
-            <Pressable
-              onPress={() =>
-                router.push(
-                  '/(athlete)/upload' as any,
-                )
-              }
-            >
-              <Text style={[styles.viewAllText, { color: colors.primary }]}>
-                Upload More →
-              </Text>
-            </Pressable>
+            {videos.length > 0 && (
+              <Pressable onPress={() => router.push('/(athlete)/reports' as any)}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Text style={[styles.viewAllText, { color: colors.textPrimary }]}>
+                    All ({videos.length})
+                  </Text>
+                  <InnovativeIcon name="arrow-right" size={13} color={colors.textPrimary} />
+                </View>
+              </Pressable>
+            )}
           </View>
 
-          {videos.length === 0 ? (
-            <Pressable
-              style={({ pressed }) => [
-                styles.emptyReportCard,
-                {
-                  backgroundColor: colors.surface,
-                  borderColor: colors.border,
-                  shadowColor: colors.cardShadow,
-                  marginBottom: 20,
-                },
-                pressed && styles.pressed,
-              ]}
-              onPress={() =>
-                router.push('/(athlete)/upload' as any)
-              }
-            >
-              <Text style={styles.emptyIcon}>📼</Text>
-              <Text
-                style={[
-                  styles.emptyTitle,
-                  { color: colors.textPrimary },
-                ]}
-              >
-                No uploaded performances yet
+          {recentLogs.length === 0 ? (
+            <MinimalCard contentStyle={{ padding: 24, alignItems: 'center' }}>
+              <InnovativeIcon name="camera" size={32} color={colors.textMuted} />
+              <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>
+                No Video Attempts Uploaded Yet
               </Text>
-              <Text
-                style={[
-                  styles.emptySubtitle,
-                  { color: colors.textSecondary },
-                ]}
-              >
-                Upload your video to get AI BlazePose scoring and submit for official verification badge.
+              <Text style={[styles.emptySub, { color: colors.textSecondary }]}>
+                Record or upload your Squat, Push-up, or Curl to start AI scoring.
               </Text>
-            </Pressable>
+              <NeomorphicButton
+                title="UPLOAD FIRST ATTEMPT"
+                icon={<InnovativeIcon name="video" size={16} color={isDark ? '#FFFFFF' : '#F7F4EE'} />}
+                onPress={() => router.push('/(athlete)/upload' as any)}
+                style={{ marginTop: 16 }}
+              />
+            </MinimalCard>
           ) : (
-            <View style={{ gap: 10, marginBottom: 20 }}>
-              {videos.slice(0, 5).map((v, idx) => (
-                <View
-                  key={v.id}
-                  style={{
-                    backgroundColor: colors.surface,
-                    borderRadius: 16,
-                    padding: 16,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                  }}
-                >
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <View style={{ flex: 1, marginRight: 8 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                        <Text style={{ fontSize: 16 }}>
-                          {v.exercise.includes('squat') ? '🏋️' : v.exercise.includes('push') ? '💪' : '🏃'}
-                        </Text>
-                        <Text style={{ fontSize: 14, fontWeight: '800', color: colors.textPrimary }}>
-                          {v.exercise.toUpperCase().replace(/_/g, ' ')} · {v.sport.toUpperCase()}
-                        </Text>
-                      </View>
-                      <Text style={{ fontSize: 11, color: colors.textMuted }}>
-                        Attempt #{videos.length - idx} · {new Date(v.uploaded_at).toLocaleDateString()} at{' '}
-                        {new Date(v.uploaded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </Text>
-                    </View>
-
+            <View style={{ gap: 8, marginBottom: 24 }}>
+              {recentLogs.map((item) => (
+                <MinimalCard key={item.id} contentStyle={{ padding: 14 }}>
+                  <View style={styles.logRow}>
                     <View
-                      style={{
-                        paddingHorizontal: 8,
-                        paddingVertical: 4,
-                        borderRadius: 6,
-                        backgroundColor:
-                          v.status === 'completed'
-                            ? `${colors.secondary}15`
-                            : v.status === 'processing'
-                            ? `${colors.primary}15`
-                            : `${colors.warning}15`,
-                        borderWidth: 1,
-                        borderColor:
-                          v.status === 'completed'
-                            ? `${colors.secondary}40`
-                            : v.status === 'processing'
-                            ? `${colors.primary}40`
-                            : `${colors.warning}40`,
-                      }}
+                      style={[
+                        styles.logIconBox,
+                        { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#EFECE4' },
+                      ]}
                     >
-                      <Text
-                        style={{
-                          fontSize: 10,
-                          fontWeight: '800',
-                          color:
-                            v.status === 'completed'
-                              ? colors.secondary
-                              : v.status === 'processing'
-                              ? colors.primary
-                              : colors.warning,
-                        }}
-                      >
-                        {v.status === 'completed'
-                          ? 'Report Ready 🎯'
-                          : v.status === 'processing'
-                          ? 'Analyzing 🤖'
-                          : 'Pending ⏳'}
+                      <InnovativeIcon
+                        name={item.exercise?.includes('squat') ? 'dumbell' : 'activity'}
+                        size={18}
+                        color={colors.textPrimary}
+                      />
+                    </View>
+
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={[styles.logTitle, { color: colors.textPrimary }]}>
+                          {(item.exercise || 'Performance').replace(/_/g, ' ').toUpperCase()}
+                        </Text>
+                        <View
+                          style={[
+                            styles.statusChip,
+                            {
+                              backgroundColor:
+                                item.status === 'completed'
+                                  ? isDark ? 'rgba(57, 255, 20, 0.12)' : '#111111'
+                                  : isDark ? 'rgba(255, 170, 0, 0.12)' : '#EFECE4',
+                              borderColor:
+                                item.status === 'completed'
+                                  ? isDark ? 'rgba(57, 255, 20, 0.3)' : '#111111'
+                                  : isDark ? 'rgba(255, 170, 0, 0.3)' : '#E4DFD3',
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.statusChipText,
+                              {
+                                color:
+                                  item.status === 'completed'
+                                    ? isDark ? colors.secondary : '#F7F4EE'
+                                    : isDark ? colors.warning : '#111111',
+                              },
+                            ]}
+                          >
+                            {item.status === 'completed' ? 'AI ANALYZED' : 'PROCESSING'}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={[styles.logDate, { color: colors.textMuted }]}>
+                        {new Date(item.uploaded_at).toLocaleDateString()} · {(item.sport || 'ATHLETICS').toUpperCase()}
                       </Text>
                     </View>
                   </View>
 
-                  {/* Actions for completed logs */}
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-                    {v.status === 'completed' ? (
-                      <Pressable
-                        onPress={() =>
-                          router.push({
-                            pathname: '/(athlete)/verification',
-                            params: { videoId: v.id },
-                          } as never)
-                        }
-                        style={{
-                          backgroundColor: `${colors.secondary}15`,
-                          paddingHorizontal: 10,
-                          paddingVertical: 6,
-                          borderRadius: 8,
-                          borderWidth: 1,
-                          borderColor: `${colors.secondary}40`,
-                        }}
-                      >
-                        <Text style={{ color: colors.secondary, fontSize: 11, fontWeight: '800' }}>
-                          🛡️ Submit for Verification
-                        </Text>
-                      </Pressable>
-                    ) : null}
-
-                    {v.status === 'completed' ? (
-                      <Pressable
-                        onPress={() => router.push('/(athlete)/reports' as any)}
-                        style={{
-                          backgroundColor: `${colors.primary}15`,
-                          paddingHorizontal: 10,
-                          paddingVertical: 6,
-                          borderRadius: 8,
-                          borderWidth: 1,
-                          borderColor: `${colors.primary}40`,
-                        }}
-                      >
-                        <Text style={{ color: colors.primary, fontSize: 11, fontWeight: '800' }}>
-                          📊 View AI Report
-                        </Text>
-                      </Pressable>
-                    ) : null}
-
-                    {v.video_url ? (
-                      <Pressable
-                        onPress={() => {
-                          if (typeof window !== 'undefined') {
-                            window.open(v.video_url, '_blank');
-                          }
-                        }}
-                        style={{
-                          backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                          paddingHorizontal: 10,
-                          paddingVertical: 6,
-                          borderRadius: 8,
-                          borderWidth: 1,
+                  <View style={[styles.logActionsRow, { borderTopColor: colors.border }]}>
+                    <Pressable
+                      onPress={() =>
+                        router.push({
+                          pathname: '/(athlete)/verification',
+                          params: { videoId: item.id },
+                        } as any)
+                      }
+                      style={[
+                        styles.actionPillBtn,
+                        {
+                          backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#EFECE4',
                           borderColor: colors.border,
-                        }}
-                      >
-                        <Text style={{ color: colors.textSecondary, fontSize: 11, fontWeight: '700' }}>
-                          💾 View / Save
-                        </Text>
-                      </Pressable>
-                    ) : null}
+                        },
+                      ]}
+                    >
+                      <InnovativeIcon name="shield-check" size={13} color={colors.textPrimary} />
+                      <Text style={[styles.actionPillText, { color: colors.textPrimary }]}>
+                        Verify
+                      </Text>
+                    </Pressable>
+
+                    <Pressable
+                      onPress={() => router.push('/(athlete)/reports' as any)}
+                      style={[
+                        styles.actionPillBtn,
+                        {
+                          backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#EFECE4',
+                          borderColor: colors.border,
+                        },
+                      ]}
+                    >
+                      <InnovativeIcon name="bar-chart" size={13} color={colors.textPrimary} />
+                      <Text style={[styles.actionPillText, { color: colors.textPrimary }]}>
+                        Report
+                      </Text>
+                    </Pressable>
+
+                    <Pressable
+                      onPress={() => handleRemoveAttempt(item.id)}
+                      style={[
+                        styles.actionPillBtn,
+                        {
+                          backgroundColor: isDark ? 'rgba(255,0,0,0.1)' : '#EFECE4',
+                          borderColor: colors.border,
+                        },
+                      ]}
+                    >
+                      <InnovativeIcon name="trash" size={13} color={colors.textPrimary} />
+                      <Text style={[styles.actionPillText, { color: colors.textPrimary }]}>
+                        Remove
+                      </Text>
+                    </Pressable>
                   </View>
-                </View>
+                </MinimalCard>
               ))}
             </View>
           )}
-
-          {/* Verification Centre */}
-          <View style={styles.sectionHeaderRow}>
-            <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
-              PERFORMANCE VERIFICATION
-            </Text>
-
-            <Pressable
-              onPress={() =>
-                router.push(
-                  '/(athlete)/verification' as any,
-                )
-              }
-            >
-              <Text style={[styles.verificationLink, { color: colors.secondary }]}>
-                View status →
-              </Text>
-            </Pressable>
-          </View>
-
-          <Pressable
-            style={({ pressed }) => [
-              styles.verificationCard,
-              {
-                backgroundColor: colors.surface,
-                borderColor: `${colors.secondary}40`,
-                shadowColor: colors.cardShadow,
-              },
-              pressed && styles.pressed,
-            ]}
-            onPress={() =>
-              router.push(
-                '/(athlete)/verification' as any,
-              )
-            }
-          >
-            <LinearGradient
-              colors={
-                isDark
-                  ? ['rgba(57,255,20,0.12)', 'rgba(0,212,255,0.04)']
-                  : ['rgba(5,150,105,0.12)', 'rgba(2,132,199,0.04)']
-              }
-              style={styles.verificationGradient}
-            >
-              <View
-                style={[
-                  styles.verificationIconBox,
-                  {
-                    backgroundColor: `${colors.secondary}15`,
-                    borderColor: `${colors.secondary}30`,
-                  },
-                ]}
-              >
-                <Text style={styles.verificationIcon}>🛡️</Text>
-              </View>
-
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={[
-                    styles.verificationTitle,
-                    { color: colors.textPrimary },
-                  ]}
-                >
-                  Request Official Verification
-                </Text>
-
-                <Text
-                  style={[
-                    styles.verificationSubtitle,
-                    { color: colors.textSecondary },
-                  ]}
-                >
-                  Submit supporting documents and track your pending, approved or rejected status.
-                </Text>
-              </View>
-
-              <Text style={[styles.verificationArrow, { color: colors.secondary }]}>
-                →
-              </Text>
-            </LinearGradient>
-          </Pressable>
         </Animated.ScrollView>
       </SafeAreaView>
     </LinearGradient>
@@ -873,345 +550,278 @@ export default function AthleteDashboard() {
 }
 
 const styles = StyleSheet.create({
-  gradient: {
-    flex: 1,
-  },
-  safe: {
-    flex: 1,
-  },
+  gradient: { flex: 1 },
+  safe: { flex: 1 },
   scroll: {
-    padding: 20,
-    paddingBottom: 48,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 40,
   },
-
-  header: {
+  headerRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 20,
+    justifyContent: 'space-between',
+    marginBottom: 16,
   },
-  greeting: {
-    fontSize: 14,
+  userInfo: { flex: 1 },
+  tagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 2,
   },
-  name: {
+  welcomeLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+  userName: {
     fontSize: 26,
     fontWeight: '900',
+    letterSpacing: -0.8,
     marginVertical: 2,
   },
-  roleBadge: {
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     alignSelf: 'flex-start',
-    borderRadius: 20,
-    borderWidth: 1,
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
     marginTop: 4,
   },
-  roleBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.5,
+  verifiedBadgeText: {
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.6,
   },
-  headerActions: {
+  headerControls: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
-    alignItems: 'center',
   },
-  accountActions: {
-    gap: 6,
-    alignItems: 'flex-end',
-  },
-  profileBtn: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 10,
+  iconButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  profileBtnText: {
+  signOutBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  liveIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  pulseDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  liveTagText: {
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  heroMainTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    letterSpacing: -0.4,
+  },
+  heroMainSub: {
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 18,
+    marginTop: 6,
+    marginBottom: 16,
+  },
+  heroFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.12)',
+  },
+  heroStatItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  heroStatText: {
     fontSize: 11,
     fontWeight: '700',
   },
-  logoutBtn: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-  },
-  logoutText: {
-    fontSize: 11,
-  },
-
-  profileCard: {
-    borderRadius: 18,
-    padding: 16,
-    borderWidth: 1,
-    marginBottom: 20,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  profileCardRow: {
+  metricsStreamRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 4,
   },
-  profileCardTitle: {
+  metricCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  metricLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+  },
+  metricBigVal: {
+    fontSize: 28,
+    fontWeight: '900',
+    letterSpacing: -0.8,
+  },
+  metricSub: {
+    fontSize: 11,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  profileRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  profileProgressTitle: {
     fontSize: 13,
     fontWeight: '800',
-    marginBottom: 2,
   },
-  profileCardSub: {
+  profileProgressSub: {
     fontSize: 11,
-    lineHeight: 15,
+    fontWeight: '500',
+    lineHeight: 16,
   },
-  arrowIcon: {
-    fontSize: 18,
-    fontWeight: '900',
-    marginLeft: 8,
-  },
-  progressBarTrack: {
-    height: 6,
-    borderRadius: 3,
+  track: {
+    height: 5,
+    borderRadius: 4,
     overflow: 'hidden',
+    marginTop: 6,
   },
-  progressBarFill: {
+  fill: {
     height: '100%',
-    borderRadius: 3,
+    borderRadius: 4,
   },
-
-  statsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 20,
-  },
-  statCard: {
-    flex: 1,
-    borderRadius: 16,
-    padding: 14,
-    alignItems: 'center',
-    borderWidth: 1,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  statValue: {
-    fontSize: 22,
-    fontWeight: '900',
-    marginBottom: 2,
-  },
-  statLabel: {
-    fontSize: 9,
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    textAlign: 'center',
-  },
-
-  uploadCta: {
-    borderRadius: 18,
-    overflow: 'hidden',
-    marginBottom: 24,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 4,
-  },
-  uploadCtaGrad: {
-    padding: 20,
-    alignItems: 'center',
-  },
-  uploadCtaText: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: '#FFFFFF',
-  },
-  uploadCtaSub: {
-    fontSize: 10,
-    color: 'rgba(255,255,255,0.85)',
-    marginTop: 3,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-    marginTop: 4,
-  },
-  sectionTitle: {
-    flexShrink: 1,
-    fontSize: 10,
-    letterSpacing: 2,
+  streamSectionHeader: {
+    fontSize: 11,
     fontWeight: '800',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginTop: 14,
+    marginBottom: 8,
+  },
+  actionCardInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  actionIconPill: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionHeading: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  actionDescription: {
+    fontSize: 11,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  recentSectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    marginBottom: 4,
   },
   viewAllText: {
     fontSize: 11,
-    fontWeight: '700',
-  },
-
-  latestReportCard: {
-    borderRadius: 18,
-    padding: 16,
-    borderWidth: 1,
-    marginBottom: 20,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  reportHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  reportScoreCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    borderWidth: 2,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  reportScoreVal: {
-    fontSize: 16,
-    fontWeight: '900',
-  },
-  reportScoreLabel: {
-    fontSize: 7,
     fontWeight: '800',
   },
-  reportInformation: {
-    flex: 1,
-    marginLeft: 14,
-  },
-  reportExerciseName: {
+  emptyTitle: {
     fontSize: 15,
+    fontWeight: '800',
+    marginTop: 10,
+    textAlign: 'center',
+  },
+  emptySub: {
+    fontSize: 12,
+    fontWeight: '500',
+    textAlign: 'center',
+    maxWidth: 280,
+    marginTop: 4,
+  },
+  logRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  logIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  statusChip: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  statusChipText: {
+    fontSize: 9,
     fontWeight: '900',
   },
-  reportSportBadge: {
-    fontSize: 10,
-    fontWeight: '700',
-    marginTop: 1,
+  logDate: {
+    fontSize: 11,
+    fontWeight: '500',
+    marginTop: 2,
   },
-  reportDate: {
-    fontSize: 10,
-    marginTop: 1,
-  },
-
-  snippetRow: {
+  logActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     marginTop: 10,
     paddingTop: 10,
     borderTopWidth: 1,
   },
-  snippetGreen: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-
-  emptyCard: {
-    borderRadius: 18,
-    padding: 24,
-    alignItems: 'center',
-    borderWidth: 1,
-    marginBottom: 20,
-    borderStyle: 'dashed',
-  },
-  emptyIcon: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  emptyTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    marginBottom: 4,
-  },
-  emptySubtitle: {
-    fontSize: 12,
-    textAlign: 'center',
-    lineHeight: 17,
-  },
-
-  leaderboardPromoCard: {
-    borderRadius: 18,
-    overflow: 'hidden',
-    borderWidth: 1,
-    marginBottom: 20,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  leaderboardPromoGrad: {
+  actionPillBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    gap: 12,
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
   },
-  trophyIcon: {
-    fontSize: 28,
-  },
-  leaderboardPromoTitle: {
-    fontSize: 14,
+  actionPillText: {
+    fontSize: 11,
     fontWeight: '800',
-    marginBottom: 2,
-  },
-  leaderboardPromoSub: {
-    fontSize: 11,
-    lineHeight: 15,
-  },
-  arrowGold: {
-    fontSize: 18,
-    fontWeight: '900',
-  },
-
-  verificationCard: {
-    borderRadius: 18,
-    overflow: 'hidden',
-    borderWidth: 1,
-    marginBottom: 20,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  verificationGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 13,
-    padding: 17,
-  },
-  verificationIconBox: {
-    width: 46,
-    height: 46,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  verificationIcon: {
-    fontSize: 23,
-  },
-  verificationTitle: {
-    fontSize: 14,
-    fontWeight: '900',
-    marginBottom: 4,
-  },
-  verificationSubtitle: {
-    fontSize: 10,
-    lineHeight: 15,
-  },
-  verificationArrow: {
-    fontSize: 21,
-    fontWeight: '900',
-  },
-  verificationLink: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-
-  pressed: {
-    opacity: 0.82,
   },
 });

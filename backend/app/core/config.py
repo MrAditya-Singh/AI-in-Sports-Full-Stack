@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:8081"
 
     # AI Real-time Gym Coach Live URL (Cloudflare Quick Tunnel - No Warning Screen)
-    LIVE_COACH_URL: str = "https://updating-hey-rough-vote.trycloudflare.com"
+    LIVE_COACH_URL: str = "https://recall-emacs-reported-mlb.trycloudflare.com"
 
     ALLOWED_ORIGINS: list[str] = [
         "http://localhost:8081",

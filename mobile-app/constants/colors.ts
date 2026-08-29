@@ -46,63 +46,89 @@ export const DarkColors = {
   border:           '#1E2A40',
   borderLight:      '#263550',
   borderFocused:    '#00D4FF',
+  borderGlow:       'rgba(0, 212, 255, 0.4)',
+
+  // ── Neomorphic & Bento Tokens ─────────────────────────────────────────────
+  neoLightHighlight:'rgba(255, 255, 255, 0.07)',
+  neoDarkShadow:    'rgba(0, 0, 0, 0.7)',
+  neoEmbossBorder:  'rgba(255, 255, 255, 0.08)',
+  bentoCardBg:      '#111726',
+  bentoCardBorder:  '#1C253B',
+  bentoHeaderBg:    'rgba(19, 25, 41, 0.85)',
+  bentoGlowCyan:    'rgba(0, 212, 255, 0.12)',
+  bentoGlowLime:    'rgba(57, 255, 20, 0.12)',
+  bentoGlowPurple:  'rgba(139, 92, 246, 0.14)',
 
   // ── Transparent overlays & Gradients ──────────────────────────────────────
   overlay:          'rgba(0, 212, 255, 0.08)',
   overlayStrong:    'rgba(0, 0, 0, 0.65)',
   gradientMain:     ['#0A0E1A', '#0D1527', '#0A0E1A'] as readonly [string, string, string],
-  gradientCard:     ['#131929', '#172033'] as readonly [string, string],
+  gradientCard:     ['#111726', '#161F33'] as readonly [string, string],
   gradientHero:     ['rgba(0, 212, 255, 0.15)', 'rgba(57, 255, 20, 0.04)'] as readonly [string, string],
+  gradientBento:    ['#131929', '#0E1424'] as readonly [string, string],
   cardShadow:       'rgba(0, 0, 0, 0.45)',
 } as const;
 
 export const LightColors = {
-  // ── Backgrounds ──────────────────────────────────────────────────────────
-  background:       '#F4F6FB',  // soft crisp slate
-  backgroundSecondary: '#EAEFF8',
-  surface:          '#FFFFFF',  // pure white cards
-  surfaceElevated:  '#F0F4FA',  // soft elevated card layers
-  surfaceGlass:     'rgba(255, 255, 255, 0.85)',
+  // ── Backgrounds (Minimalist Ivory Cream) ──────────────────────────────────
+  background:       '#F7F4EE',  // warm minimalist cream from image
+  backgroundSecondary: '#EFECE4',
+  surface:          '#FFFFFF',  // pure card surface
+  surfaceElevated:  '#EBE7DD',  // elevated soft layer
+  surfaceGlass:     'rgba(247, 244, 238, 0.92)',
 
-  // ── Brand ─────────────────────────────────────────────────────────────────
-  primary:          '#0284C7',  // vivid electric sapphire
-  primaryDark:      '#0369A1',
-  primaryLight:     '#38BDF8',
-  primaryGlow:      'rgba(2, 132, 199, 0.2)',
-  secondary:        '#059669',  // vibrant emerald green
-  secondaryDark:    '#047857',
-  secondaryGlow:    'rgba(5, 150, 105, 0.18)',
-  accent:           '#7C3AED',  // vibrant royal purple
+  // ── Brand (Jet Black / Charcoal) ──────────────────────────────────────────
+  primary:          '#111111',  // deep matte obsidian black
+  primaryDark:      '#000000',
+  primaryLight:     '#2A2A2A',
+  primaryGlow:      'rgba(17, 17, 17, 0.15)',
+  secondary:        '#111111',  // minimalist unified black
+  secondaryDark:    '#000000',
+  secondaryGlow:    'rgba(17, 17, 17, 0.1)',
+  accent:           '#111111',
 
   // ── Text ──────────────────────────────────────────────────────────────────
-  textPrimary:      '#0F172A',  // high contrast deep slate
-  textSecondary:    '#475569',  // readable mid slate
-  textMuted:        '#8492A6',  // muted labels
-  textInverse:      '#FFFFFF',
+  textPrimary:      '#111111',  // pure jet black
+  textSecondary:    '#55524B',  // warm charcoal mid-tone
+  textMuted:        '#8E8A80',  // muted stone label
+  textInverse:      '#F7F4EE',  // cream on black
 
-  // ── Status ────────────────────────────────────────────────────────────────
-  success:          '#059669',
-  warning:          '#D97706',
-  error:            '#DC2626',
-  info:             '#0284C7',
+  // ── Status (Minimalist High-Contrast) ──────────────────────────────────────
+  success:          '#111111',
+  warning:          '#111111',
+  error:            '#111111',
+  info:             '#111111',
 
-  // ── Leaderboard ───────────────────────────────────────────────────────────
-  gold:             '#D97706',
-  silver:           '#64748B',
-  bronze:           '#B45309',
+  // ── Leaderboard Podium ───────────────────────────────────────────────────
+  gold:             '#111111',
+  silver:           '#55524B',
+  bronze:           '#8E8A80',
 
   // ── Borders / Dividers ────────────────────────────────────────────────────
-  border:           '#E2E8F0',
-  borderLight:      '#EDF2F7',
-  borderFocused:    '#0284C7',
+  border:           '#E4DFD3',
+  borderLight:      '#ECE8DE',
+  borderFocused:    '#111111',
+  borderGlow:       'rgba(17, 17, 17, 0.25)',
+
+  // ── Neomorphic & Stream Card Tokens ───────────────────────────────────────
+  neoLightHighlight:'rgba(255, 255, 255, 0.95)',
+  neoDarkShadow:    'rgba(17, 17, 17, 0.08)',
+  neoEmbossBorder:  'rgba(17, 17, 17, 0.06)',
+  bentoCardBg:      '#FFFFFF',
+  bentoCardBorder:  '#E4DFD3',
+  bentoHeaderBg:    'rgba(247, 244, 238, 0.95)',
+  bentoGlowCyan:    'rgba(17, 17, 17, 0.04)',
+  bentoGlowLime:    'rgba(17, 17, 17, 0.04)',
+  bentoGlowPurple:  'rgba(17, 17, 17, 0.04)',
 
   // ── Transparent overlays & Gradients ──────────────────────────────────────
-  overlay:          'rgba(2, 132, 199, 0.08)',
-  overlayStrong:    'rgba(15, 23, 42, 0.4)',
-  gradientMain:     ['#F4F6FB', '#EAEFF8', '#F4F6FB'] as readonly [string, string, string],
-  gradientCard:     ['#FFFFFF', '#F8FAFC'] as readonly [string, string],
-  gradientHero:     ['rgba(2, 132, 199, 0.12)', 'rgba(5, 150, 105, 0.08)'] as readonly [string, string],
-  cardShadow:       'rgba(15, 23, 42, 0.08)',
+  overlay:          'rgba(17, 17, 17, 0.04)',
+  overlayStrong:    'rgba(17, 17, 17, 0.85)',
+  gradientMain:     ['#F7F4EE', '#F7F4EE', '#F7F4EE'] as readonly [string, string, string],
+  gradientCard:     ['#FFFFFF', '#FAF8F3'] as readonly [string, string],
+  gradientHero:     ['rgba(17, 17, 17, 0.05)', 'rgba(17, 17, 17, 0.02)'] as readonly [string, string],
+  gradientBento:    ['#FFFFFF', '#FAF8F3'] as readonly [string, string],
+  cardShadow:       'rgba(17, 17, 17, 0.06)',
 } as const;
 
 export type ThemeColors = {
