@@ -216,41 +216,6 @@ export async function resetPassword(
   );
 }
 
-// ─── Direct Reset Password ───────────────────────────────────────────────────
-
-export async function directResetPassword(
-  email: string,
-  newPassword: string
-): Promise<string> {
-  const cleanEmail = email.trim().toLowerCase();
-
-  // 1. Primary: Try direct Supabase Auth user password update
-  try {
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-    if (!error) {
-      return 'Password updated successfully in database! You can now log in.';
-    }
-  } catch {
-    // Continue
-  }
-
-  // 2. Admin API direct update
-  try {
-    const response = await api.post('/auth/direct-reset-password', {
-      email: cleanEmail,
-      new_password: newPassword,
-    });
-
-    return (
-      response.data?.data?.message ??
-      'Password updated successfully in database! You can now log in.'
-    );
-  } catch (err: any) {
-    const msg = err?.response?.data?.detail?.error?.message || err?.userMessage || err?.message;
-    throw new Error(msg || 'Failed to update password. Please check your email address.');
-  }
-}
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 export async function getAuthToken():
