@@ -30,8 +30,8 @@ class Settings(BaseSettings):
     # Password-reset emails redirect here.
     FRONTEND_URL: str = "https://mobile-app-theta-gules.vercel.app"
 
-    # AI Real-time Gym Coach Live URL (Cloudflare Quick Tunnel - No Warning Screen)
-    LIVE_COACH_URL: str = "https://recall-emacs-reported-mlb.trycloudflare.com"
+    # AI Real-time Gym Coach Live URL (Set via LIVE_COACH_URL environment variable in production)
+    LIVE_COACH_URL: str = ""
 
     ALLOWED_ORIGINS: list[str] = [
         "http://localhost:8081",

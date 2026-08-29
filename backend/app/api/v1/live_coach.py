@@ -35,15 +35,15 @@ async def get_live_launch_url(athlete: AuthenticatedUser = Depends(require_athle
     pre-configured with the athlete's authenticated username for single-sign-on (SSO).
     """
     username = athlete.email.split("@")[0] if athlete.email else f"athlete_{athlete.id[:6]}"
-    base_url = settings.LIVE_COACH_URL.rstrip("/")
-    launch_url = f"{base_url}/?username={username}"
+    base_url = settings.LIVE_COACH_URL.rstrip("/") if settings.LIVE_COACH_URL else ""
+    launch_url = f"{base_url}/?username={username}" if base_url else ""
 
     return {
         "success": True,
         "data": {
             "launch_url": launch_url,
             "username": username,
-            "service_status": "active",
+            "service_status": "active" if base_url else "unconfigured",
         },
     }
 
