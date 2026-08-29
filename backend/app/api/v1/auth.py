@@ -51,6 +51,11 @@ class ResetPasswordRequest(BaseModel):
     new_password: str
 
 
+class DirectResetPasswordRequest(BaseModel):
+    email: EmailStr
+    new_password: str
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # POST /auth/signup
 # ─────────────────────────────────────────────────────────────────────────────
@@ -308,6 +313,60 @@ async def reset_password(body: ResetPasswordRequest):
         "success": True,
         "data": {"message": "Password updated successfully. You can now log in."},
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# POST /auth/direct-reset-password
+# ─────────────────────────────────────────────────────────────────────────────
+@router.post("/direct-reset-password")
+async def direct_reset_password(body: DirectResetPasswordRequest):
+    """
+    Directly updates a user's password in Supabase Auth & Postgres DB using Admin API.
+    Does not depend on external email links arriving.
+    """
+    supabase = get_supabase_client()
+    clean_email = body.email.lower()
+
+    try:
+        user_id = None
+        # 1. Lookup user in public.users table
+        res = supabase.table("users").select("id").eq("email", clean_email).execute()
+        if res.data and len(res.data) > 0:
+            user_id = res.data[0]["id"]
+        else:
+            # 2. Lookup via auth admin list
+            try:
+                users_resp = supabase.auth.admin.list_users()
+                users_list = getattr(users_resp, "users", []) if hasattr(users_resp, "users") else users_resp
+                for u in users_list:
+                    if getattr(u, "email", "").lower() == clean_email:
+                        user_id = str(u.id)
+                        break
+            except Exception as exc:
+                logger.warning("Admin list_users lookup error: %s", exc)
+
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=_err("USER_NOT_FOUND", "No account registered with this email address."),
+            )
+
+        # 3. Update user password directly in Supabase Auth
+        supabase.auth.admin.update_user_by_id(user_id, {"password": body.new_password})
+        logger.info("Direct password reset succeeded for %s (%s)", clean_email, user_id)
+
+        return {
+            "success": True,
+            "data": {"message": "Password updated successfully in database! You can now log in."},
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Direct password reset error for %s: %s", clean_email, exc)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=_err("RESET_FAILED", "Failed to update password. Please check email address."),
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -23,7 +23,7 @@ import MinimalCard from '../../components/MinimalCard';
 import InnovativeIcon from '../../components/InnovativeIcon';
 import NeomorphicButton from '../../components/NeomorphicButton';
 import ThemeToggle from '../../components/ThemeToggle';
-import { login, forgotPassword } from '../../services/authService';
+import { login, forgotPassword, directResetPassword } from '../../services/authService';
 import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '../../hooks/useTheme';
 
@@ -34,6 +34,8 @@ export default function LoginScreen() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [resetSuccess, setResetSuccess] = useState('');
   const [loading, setLoading] = useState(false);
@@ -78,17 +80,40 @@ export default function LoginScreen() {
     }
   }
 
-  async function handleForgotPassword() {
+  async function handleDirectPasswordUpdate() {
     setError('');
     setResetSuccess('');
-    if (!email.trim()) { setError('Please enter your email address to receive reset link.'); shake(); return; }
+    if (!email.trim()) { setError('Please enter your account email address.'); shake(); return; }
+    if (!newPassword.trim()) { setError('Please enter your new password.'); shake(); return; }
+    if (newPassword.length < 8) { setError('New password must be at least 8 characters.'); shake(); return; }
+    if (newPassword !== confirmPassword) { setError('New passwords do not match.'); shake(); return; }
+
+    setLoading(true);
+    try {
+      const msg = await directResetPassword(email.trim().toLowerCase(), newPassword);
+      setResetSuccess(msg);
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err: any) {
+      const msg = err?.message || err?.userMessage || 'Failed to update password in database.';
+      setError(msg);
+      shake();
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleForgotPasswordEmail() {
+    setError('');
+    setResetSuccess('');
+    if (!email.trim()) { setError('Please enter your email address.'); shake(); return; }
 
     setLoading(true);
     try {
       const msg = await forgotPassword(email.trim().toLowerCase());
       setResetSuccess(msg);
     } catch (err: any) {
-      const msg = err?.message || err?.userMessage || 'Could not dispatch password reset email. Please try again.';
+      const msg = err?.message || err?.userMessage || 'Could not dispatch reset email.';
       setError(msg);
       shake();
     } finally {
@@ -140,11 +165,11 @@ export default function LoginScreen() {
             >
               <MinimalCard contentStyle={{ padding: 22 }}>
                 <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
-                  {isForgotPassword ? 'Reset Password' : 'Welcome Back'}
+                  {isForgotPassword ? 'Reset Password Online' : 'Welcome Back'}
                 </Text>
                 <Text style={[styles.cardSub, { color: colors.textSecondary }]}>
                   {isForgotPassword
-                    ? 'Enter your account email to receive reset instructions'
+                    ? 'Set your new password directly or dispatch an email link'
                     : 'Sign in to your athlete account'}
                 </Text>
 
@@ -242,16 +267,67 @@ export default function LoginScreen() {
                   </>
                 ) : (
                   <>
-                    {/* Send Reset Link CTA */}
+                    {/* New Password Field */}
+                    <Text style={[styles.fieldLabel, { color: colors.textMuted, marginTop: 14 }]}>
+                      NEW PASSWORD
+                    </Text>
+                    <TextInput
+                      value={newPassword}
+                      onChangeText={setNewPassword}
+                      placeholder="At least 8 characters"
+                      placeholderTextColor={colors.textMuted}
+                      secureTextEntry
+                      style={[
+                        styles.input,
+                        {
+                          backgroundColor: isDark ? 'rgba(0,0,0,0.35)' : '#FFFFFF',
+                          borderColor: colors.border,
+                          color: colors.textPrimary,
+                        },
+                      ]}
+                    />
+
+                    {/* Confirm Password Field */}
+                    <Text style={[styles.fieldLabel, { color: colors.textMuted, marginTop: 14 }]}>
+                      CONFIRM NEW PASSWORD
+                    </Text>
+                    <TextInput
+                      value={confirmPassword}
+                      onChangeText={setConfirmPassword}
+                      placeholder="Re-enter new password"
+                      placeholderTextColor={colors.textMuted}
+                      secureTextEntry
+                      style={[
+                        styles.input,
+                        {
+                          backgroundColor: isDark ? 'rgba(0,0,0,0.35)' : '#FFFFFF',
+                          borderColor: colors.border,
+                          color: colors.textPrimary,
+                        },
+                      ]}
+                    />
+
+                    {/* Direct Update CTA */}
                     <NeomorphicButton
-                      title={loading ? 'SENDING LINK...' : 'SEND RESET LINK'}
-                      icon={<InnovativeIcon name="send" size={16} color={isDark ? '#FFFFFF' : '#F7F4EE'} />}
-                      onPress={handleForgotPassword}
+                      title={loading ? 'UPDATING DATABASE...' : 'UPDATE PASSWORD NOW'}
+                      icon={<InnovativeIcon name="check-circle" size={16} color={isDark ? '#FFFFFF' : '#F7F4EE'} />}
+                      onPress={handleDirectPasswordUpdate}
                       loading={loading}
                       variant="primary"
                       size="lg"
-                      style={{ marginTop: 22 }}
+                      style={{ marginTop: 20 }}
                     />
+
+                    {/* Email Link Alternative Button */}
+                    <Pressable
+                      onPress={handleForgotPasswordEmail}
+                      disabled={loading}
+                      style={{ marginTop: 14, alignItems: 'center' }}
+                    >
+                      <Text style={[styles.linkText, { color: colors.textSecondary }]}>
+                        📧 Send Email Recovery Link Instead
+                      </Text>
+                    </Pressable>
 
                     <Pressable
                       onPress={() => {
@@ -259,7 +335,7 @@ export default function LoginScreen() {
                         setResetSuccess('');
                         setIsForgotPassword(false);
                       }}
-                      style={{ marginTop: 16, alignItems: 'center' }}
+                      style={{ marginTop: 14, alignItems: 'center' }}
                     >
                       <Text style={[styles.linkText, { color: colors.textPrimary }]}>
                         ← Back to Sign In
